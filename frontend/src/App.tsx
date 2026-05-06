@@ -5,6 +5,7 @@ import {
   Boxes,
   Building2,
   CreditCard,
+  RotateCcw,
   Edit3,
   Loader2,
   LogOut,
@@ -25,7 +26,7 @@ import { Card } from './components/ui/card'
 import { Input } from './components/ui/input'
 import { api } from './lib/api'
 import { currency } from './lib/utils'
-import { demoProducts, type Product, usePosStore } from './store/usePosStore'
+import { type Product, usePosStore } from './store/usePosStore'
 
 type ModuleKey = 'sale' | 'inventory' | 'customers' | 'reports' | 'settings'
 type PaymentMethod = 'cash' | 'card' | 'mixed'
@@ -63,6 +64,38 @@ type TopProduct = {
   product_name: string
   quantity: string
   total: string
+}
+
+type SaleListItem = {
+  id: number
+  folio: string
+  total: string
+  status: string
+  sold_at: string
+  items?: Array<{ product_name: string; quantity: string }>
+  payments?: Array<{ method: string; amount: string }>
+}
+
+type Refund = {
+  id: number
+  amount: string
+  reason: string
+  status: string
+  sale?: { folio?: string } | null
+}
+
+type NamedCatalog = {
+  id: number
+  name: string
+  code?: string
+  phone?: string | null
+}
+
+type SettingRow = {
+  id: number
+  key: string
+  group: string
+  value: unknown
 }
 
 type SaleResponse = {
@@ -150,17 +183,30 @@ function App() {
   const [email, setEmail] = useState('admin@example.com')
   const [password, setPassword] = useState('password')
   const [user, setUser] = useState<AuthResponse['user'] | null>(null)
-  const [productsSource, setProductsSource] = useState<Product[]>(demoProducts)
+  const [productsSource, setProductsSource] = useState<Product[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [salesSummary, setSalesSummary] = useState<SalesSummary | null>(null)
   const [topProducts, setTopProducts] = useState<TopProduct[]>([])
+  const [sales, setSales] = useState<SaleListItem[]>([])
+  const [refunds, setRefunds] = useState<Refund[]>([])
+  const [categories, setCategories] = useState<NamedCatalog[]>([])
+  const [brands, setBrands] = useState<NamedCatalog[]>([])
+  const [suppliers, setSuppliers] = useState<NamedCatalog[]>([])
+  const [branches, setBranches] = useState<NamedCatalog[]>([])
+  const [settings, setSettings] = useState<SettingRow[]>([])
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm)
   const [newCustomerName, setNewCustomerName] = useState('')
   const [newCustomerPhone, setNewCustomerPhone] = useState('')
+  const [newCategory, setNewCategory] = useState('')
+  const [newBrand, setNewBrand] = useState('')
+  const [newSupplier, setNewSupplier] = useState('')
+  const [businessName, setBusinessName] = useState('POS Profesional')
+  const [currencyCode, setCurrencyCode] = useState('MXN')
+  const [defaultTax, setDefaultTax] = useState('16')
   const [lastReceipt, setLastReceipt] = useState<SaleResponse['data'] | null>(null)
   const [apiOnline, setApiOnline] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState('Modo demo: inicia sesion para operar con la API.')
+  const [message, setMessage] = useState('Inicia sesion para operar con la API.')
   const {
     cart,
     addItem,
@@ -192,18 +238,48 @@ function App() {
   }, [])
 
   const loadReports = useCallback(async () => {
-    const [summary, top] = await Promise.all([
+    const [summary, top, salesResponse, refundsResponse] = await Promise.all([
       api<SalesSummary>('/reports/sales-summary'),
       api<TopProduct[]>('/reports/top-products?limit=8'),
+      api<Paginated<SaleListItem>>('/sales?per_page=12'),
+      api<Paginated<Refund>>('/refunds?per_page=12'),
     ])
     setSalesSummary(summary)
     setTopProducts(top)
+    setSales(salesResponse.data)
+    setRefunds(refundsResponse.data)
+  }, [])
+
+  const loadSettings = useCallback(async () => {
+    const [settingsResponse, categoriesResponse, brandsResponse, suppliersResponse, branchesResponse] = await Promise.all([
+      api<SettingRow[]>('/settings'),
+      api<Paginated<NamedCatalog>>('/categories?per_page=100'),
+      api<Paginated<NamedCatalog>>('/brands?per_page=100'),
+      api<Paginated<NamedCatalog>>('/suppliers?per_page=100'),
+      api<Paginated<NamedCatalog>>('/branches?per_page=100'),
+    ])
+    setSettings(settingsResponse)
+    setCategories(categoriesResponse.data)
+    setBrands(brandsResponse.data)
+    setSuppliers(suppliersResponse.data)
+    setBranches(branchesResponse.data)
+
+    const business = settingsResponse.find((setting) => setting.key === 'business_name')?.value
+    const currencySetting = settingsResponse.find((setting) => setting.key === 'currency')?.value
+    const taxSetting = settingsResponse.find((setting) => setting.key === 'default_tax')?.value
+    if (typeof business === 'string') setBusinessName(business)
+    if (typeof currencySetting === 'string') setCurrencyCode(currencySetting)
+    if (typeof taxSetting === 'string' || typeof taxSetting === 'number') setDefaultTax(String(taxSetting))
   }, [])
 
   const refreshAll = useCallback(async () => {
-    const [, session] = await Promise.all([loadProducts(), loadSession(), loadCustomers(), loadReports()])
+    const [, session] = await Promise.all([loadProducts(), loadSession()])
+    void loadCustomers().catch(() => undefined)
+    void loadReports().catch(() => undefined)
+    void loadSettings().catch(() => undefined)
+    setApiOnline(true)
     setMessage(session ? 'API conectada. Caja abierta y lista para vender.' : 'API conectada. Abre caja para comenzar.')
-  }, [loadCustomers, loadProducts, loadReports, loadSession])
+  }, [loadCustomers, loadProducts, loadReports, loadSession, loadSettings])
 
   useEffect(() => {
     const token = localStorage.getItem('pos_token')
@@ -216,6 +292,8 @@ function App() {
       })
       .catch(() => {
         localStorage.removeItem('pos_token')
+        setUser(null)
+        setApiOnline(false)
         setMessage('Sesion expirada. Inicia sesion nuevamente.')
       })
   }, [refreshAll])
@@ -232,6 +310,8 @@ function App() {
       setUser(response.user)
       await refreshAll()
     } catch (error) {
+      setUser(null)
+      setApiOnline(false)
       setMessage(error instanceof Error ? error.message : 'No fue posible iniciar sesion.')
     } finally {
       setLoading(false)
@@ -249,7 +329,7 @@ function App() {
     setApiOnline(false)
     setCashSession(false)
     clearCart()
-    setMessage('Sesion cerrada. Modo demo activo.')
+    setMessage('Sesion cerrada.')
   }
 
   const openCashSession = async () => {
@@ -409,6 +489,62 @@ function App() {
     }
   }
 
+  const refundSale = async (sale: SaleListItem) => {
+    setLoading(true)
+    try {
+      await api('/refunds', {
+        method: 'POST',
+        body: JSON.stringify({ sale_id: sale.id, reason: 'Devolucion desde POS web' }),
+      })
+      await Promise.all([loadProducts(), loadReports(), loadSession()])
+      setMessage(`Venta ${sale.folio} devuelta correctamente.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible devolver la venta.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const createCatalogItem = async (kind: 'category' | 'brand' | 'supplier') => {
+    const value = kind === 'category' ? newCategory : kind === 'brand' ? newBrand : newSupplier
+    if (!value.trim()) {
+      setMessage('Captura un nombre para el catalogo.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const endpoint = kind === 'category' ? '/categories' : kind === 'brand' ? '/brands' : '/suppliers'
+      await api(endpoint, { method: 'POST', body: JSON.stringify({ name: value }) })
+      setNewCategory(kind === 'category' ? '' : newCategory)
+      setNewBrand(kind === 'brand' ? '' : newBrand)
+      setNewSupplier(kind === 'supplier' ? '' : newSupplier)
+      await loadSettings()
+      setMessage('Catalogo actualizado correctamente.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible actualizar el catalogo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveSettings = async () => {
+    setLoading(true)
+    try {
+      await Promise.all([
+        api('/settings', { method: 'POST', body: JSON.stringify({ key: 'business_name', value: businessName, group: 'business' }) }),
+        api('/settings', { method: 'POST', body: JSON.stringify({ key: 'currency', value: currencyCode, group: 'business' }) }),
+        api('/settings', { method: 'POST', body: JSON.stringify({ key: 'default_tax', value: defaultTax, group: 'taxes' }) }),
+      ])
+      await loadSettings()
+      setMessage('Configuracion guardada correctamente.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible guardar configuracion.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const printReceipt = () => {
     window.print()
   }
@@ -482,7 +618,7 @@ function App() {
         <section className="flex min-w-0 flex-col print:hidden">
           <header className="flex flex-col gap-4 border-b border-slate-200 bg-white px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <p className="text-sm font-medium text-cyan-700">{user.branch?.name ?? 'Sucursal Principal'} - {apiOnline ? 'API conectada' : 'Modo demo'}</p>
+              <p className="text-sm font-medium text-cyan-700">{user.branch?.name ?? 'Sucursal Principal'} - {apiOnline ? 'API conectada' : 'Sin conexion API'}</p>
               <h1 className="text-2xl font-bold">{nav.find((item) => item.key === activeModule)?.label ?? 'Punto de venta'}</h1>
             </div>
             <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] xl:w-[760px]">
@@ -537,23 +673,42 @@ function App() {
                 />
               )}
 
-              {activeModule === 'reports' && <ReportsModule summary={salesSummary} topProducts={topProducts} />}
+              {activeModule === 'reports' && (
+                <ReportsModule
+                  summary={salesSummary}
+                  topProducts={topProducts}
+                  sales={sales}
+                  refunds={refunds}
+                  loading={loading}
+                  onRefund={refundSale}
+                />
+              )}
 
               {activeModule === 'settings' && (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Card className="p-4">
-                    <h2 className="text-lg font-bold">Negocio</h2>
-                    <p className="mt-2 text-sm text-slate-500">Moneda MXN, IVA configurable por producto y caja principal activa.</p>
-                  </Card>
-                  <Card className="p-4">
-                    <h2 className="text-lg font-bold">Impresion</h2>
-                    <p className="mt-2 text-sm text-slate-500">El recibo web ya imprime. El siguiente paso tecnico es ESC/POS por agente local.</p>
-                    <Button className="mt-4" variant="secondary" onClick={printReceipt} disabled={!lastReceipt}>
-                      <Printer size={18} />
-                      Imprimir ultimo recibo
-                    </Button>
-                  </Card>
-                </div>
+                <SettingsModule
+                  businessName={businessName}
+                  currencyCode={currencyCode}
+                  defaultTax={defaultTax}
+                  categories={categories}
+                  brands={brands}
+                  suppliers={suppliers}
+                  branches={branches}
+                  settings={settings}
+                  loading={loading}
+                  newCategory={newCategory}
+                  newBrand={newBrand}
+                  newSupplier={newSupplier}
+                  hasReceipt={Boolean(lastReceipt)}
+                  onBusinessName={setBusinessName}
+                  onCurrencyCode={setCurrencyCode}
+                  onDefaultTax={setDefaultTax}
+                  onNewCategory={setNewCategory}
+                  onNewBrand={setNewBrand}
+                  onNewSupplier={setNewSupplier}
+                  onCreateCatalog={createCatalogItem}
+                  onSave={saveSettings}
+                  onPrint={printReceipt}
+                />
               )}
             </section>
 
@@ -568,7 +723,7 @@ function App() {
                 </div>
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <StatusTile label="Usuario" value={user.name} />
-                  <StatusTile label="Estado" value={apiOnline ? 'Online' : 'Demo'} />
+                  <StatusTile label="Estado" value={apiOnline ? 'Online' : 'Sin conexion'} />
                 </div>
               </Card>
 
@@ -786,7 +941,21 @@ function CustomersModule({
   )
 }
 
-function ReportsModule({ summary, topProducts }: { summary: SalesSummary | null; topProducts: TopProduct[] }) {
+function ReportsModule({
+  summary,
+  topProducts,
+  sales,
+  refunds,
+  loading,
+  onRefund,
+}: {
+  summary: SalesSummary | null
+  topProducts: TopProduct[]
+  sales: SaleListItem[]
+  refunds: Refund[]
+  loading: boolean
+  onRefund: (sale: SaleListItem) => void
+}) {
   return (
     <div className="space-y-4">
       <div className="grid gap-3 md:grid-cols-3">
@@ -794,22 +963,200 @@ function ReportsModule({ summary, topProducts }: { summary: SalesSummary | null;
         <Metric label="Ingresos" value={currency.format(Number(summary?.gross_sales ?? 0))} />
         <Metric label="Productos top" value={topProducts.length.toString()} />
       </div>
+      <div className="grid gap-4 2xl:grid-cols-2">
+        <Card className="overflow-hidden">
+          <div className="grid grid-cols-[1fr_120px_120px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">
+            <span>Producto</span>
+            <span>Cantidad</span>
+            <span>Importe</span>
+          </div>
+          {topProducts.map((product) => (
+            <div key={product.product_id} className="grid grid-cols-[1fr_120px_120px] gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+              <span className="font-semibold">{product.product_name}</span>
+              <span>{Number(product.quantity).toFixed(0)}</span>
+              <span>{currency.format(Number(product.total))}</span>
+            </div>
+          ))}
+          {topProducts.length === 0 && <Empty text="Aun no hay ventas para reportar." />}
+        </Card>
+
+        <Card className="overflow-hidden">
+          <div className="grid grid-cols-[1fr_100px_90px_92px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">
+            <span>Venta</span>
+            <span>Total</span>
+            <span>Estado</span>
+            <span>Accion</span>
+          </div>
+          {sales.map((sale) => (
+            <div key={sale.id} className="grid grid-cols-[1fr_100px_90px_92px] items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+              <span className="font-semibold">{sale.folio}</span>
+              <span>{currency.format(Number(sale.total))}</span>
+              <span className={sale.status === 'refunded' ? 'text-red-600' : 'text-emerald-700'}>{sale.status}</span>
+              <Button className="h-8 px-2" variant="ghost" disabled={loading || sale.status !== 'completed'} onClick={() => onRefund(sale)} aria-label={`Devolver ${sale.folio}`}>
+                <RotateCcw size={14} />
+              </Button>
+            </div>
+          ))}
+          {sales.length === 0 && <Empty text="Aun no hay ventas registradas." />}
+        </Card>
+      </div>
+
       <Card className="overflow-hidden">
-        <div className="grid grid-cols-[1fr_120px_120px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">
-          <span>Producto</span>
-          <span>Cantidad</span>
+        <div className="grid grid-cols-[1fr_120px_1fr_100px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">
+          <span>Venta</span>
           <span>Importe</span>
+          <span>Motivo</span>
+          <span>Estado</span>
         </div>
-        {topProducts.map((product) => (
-          <div key={product.product_id} className="grid grid-cols-[1fr_120px_120px] gap-3 border-t border-slate-100 px-4 py-3 text-sm">
-            <span className="font-semibold">{product.product_name}</span>
-            <span>{Number(product.quantity).toFixed(0)}</span>
-            <span>{currency.format(Number(product.total))}</span>
+        {refunds.map((refund) => (
+          <div key={refund.id} className="grid grid-cols-[1fr_120px_1fr_100px] gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+            <span className="font-semibold">{refund.sale?.folio ?? 'Sin folio'}</span>
+            <span>{currency.format(Number(refund.amount))}</span>
+            <span className="text-slate-600">{refund.reason}</span>
+            <span>{refund.status}</span>
           </div>
         ))}
-        {topProducts.length === 0 && <Empty text="Aun no hay ventas para reportar." />}
+        {refunds.length === 0 && <Empty text="Aun no hay devoluciones registradas." />}
       </Card>
     </div>
+  )
+}
+
+function SettingsModule({
+  businessName,
+  currencyCode,
+  defaultTax,
+  categories,
+  brands,
+  suppliers,
+  branches,
+  settings,
+  loading,
+  newCategory,
+  newBrand,
+  newSupplier,
+  hasReceipt,
+  onBusinessName,
+  onCurrencyCode,
+  onDefaultTax,
+  onNewCategory,
+  onNewBrand,
+  onNewSupplier,
+  onCreateCatalog,
+  onSave,
+  onPrint,
+}: {
+  businessName: string
+  currencyCode: string
+  defaultTax: string
+  categories: NamedCatalog[]
+  brands: NamedCatalog[]
+  suppliers: NamedCatalog[]
+  branches: NamedCatalog[]
+  settings: SettingRow[]
+  loading: boolean
+  newCategory: string
+  newBrand: string
+  newSupplier: string
+  hasReceipt: boolean
+  onBusinessName: (value: string) => void
+  onCurrencyCode: (value: string) => void
+  onDefaultTax: (value: string) => void
+  onNewCategory: (value: string) => void
+  onNewBrand: (value: string) => void
+  onNewSupplier: (value: string) => void
+  onCreateCatalog: (kind: 'category' | 'brand' | 'supplier') => void
+  onSave: () => void
+  onPrint: () => void
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card className="p-4">
+          <h2 className="mb-3 text-lg font-bold">Negocio</h2>
+          <div className="grid gap-3 md:grid-cols-3">
+            <Input className="md:col-span-3" placeholder="Nombre comercial" value={businessName} onChange={(event) => onBusinessName(event.target.value)} />
+            <Input placeholder="Moneda" value={currencyCode} onChange={(event) => onCurrencyCode(event.target.value)} />
+            <Input placeholder="IVA default" type="number" value={defaultTax} onChange={(event) => onDefaultTax(event.target.value)} />
+            <Button onClick={onSave} disabled={loading}>
+              <Settings size={18} />
+              Guardar
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="p-4">
+          <h2 className="mb-3 text-lg font-bold">Impresion</h2>
+          <p className="text-sm text-slate-500">Recibo web listo para impresora del navegador. ESC/POS queda preparado para servicio local.</p>
+          <Button className="mt-4" variant="secondary" onClick={onPrint} disabled={!hasReceipt}>
+            <Printer size={18} />
+            Imprimir ultimo recibo
+          </Button>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <CatalogCard title="Categorias" value={newCategory} items={categories} placeholder="Nueva categoria" onValue={onNewCategory} onCreate={() => onCreateCatalog('category')} />
+        <CatalogCard title="Marcas" value={newBrand} items={brands} placeholder="Nueva marca" onValue={onNewBrand} onCreate={() => onCreateCatalog('brand')} />
+        <CatalogCard title="Proveedores" value={newSupplier} items={suppliers} placeholder="Nuevo proveedor" onValue={onNewSupplier} onCreate={() => onCreateCatalog('supplier')} />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card className="overflow-hidden">
+          <div className="bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">Sucursales</div>
+          {branches.map((branch) => (
+            <div key={branch.id} className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm">
+              <span className="font-semibold">{branch.name}</span>
+              <span className="text-slate-500">{branch.code}</span>
+            </div>
+          ))}
+        </Card>
+        <Card className="overflow-hidden">
+          <div className="bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">Settings guardados</div>
+          {settings.map((setting) => (
+            <div key={setting.id} className="grid grid-cols-[120px_1fr] gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+              <span className="font-semibold">{setting.key}</span>
+              <span className="truncate text-slate-500">{typeof setting.value === 'object' ? JSON.stringify(setting.value) : String(setting.value ?? '')}</span>
+            </div>
+          ))}
+          {settings.length === 0 && <Empty text="Aun no hay configuraciones guardadas." />}
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+function CatalogCard({
+  title,
+  value,
+  items,
+  placeholder,
+  onValue,
+  onCreate,
+}: {
+  title: string
+  value: string
+  items: NamedCatalog[]
+  placeholder: string
+  onValue: (value: string) => void
+  onCreate: () => void
+}) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b border-slate-100 p-4">
+        <h2 className="mb-3 text-lg font-bold">{title}</h2>
+        <div className="grid grid-cols-[1fr_auto] gap-2">
+          <Input placeholder={placeholder} value={value} onChange={(event) => onValue(event.target.value)} />
+          <Button onClick={onCreate}><Plus size={18} /></Button>
+        </div>
+      </div>
+      <div className="max-h-56 overflow-auto">
+        {items.map((item) => (
+          <div key={item.id} className="border-t border-slate-100 px-4 py-2 text-sm font-medium">{item.name}</div>
+        ))}
+        {items.length === 0 && <Empty text="Sin elementos." />}
+      </div>
+    </Card>
   )
 }
 

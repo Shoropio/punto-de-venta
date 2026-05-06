@@ -31,13 +31,6 @@ type PosState = {
   setCashSession: (open: boolean, id?: number | null) => void
 }
 
-export const demoProducts: Product[] = [
-  { id: 1, sku: 'CAF-AME', barcode: '750000000001', name: 'Cafe americano', category: 'Bebidas', costPrice: 12, salePrice: 28, taxRate: 16, stock: 100, minStock: 10 },
-  { id: 2, sku: 'PAN-CHO', barcode: '750000000002', name: 'Pan de chocolate', category: 'Panaderia', costPrice: 15, salePrice: 32, taxRate: 16, stock: 18, minStock: 8 },
-  { id: 3, sku: 'ENS-CES', barcode: '750000000003', name: 'Ensalada cesar', category: 'Comida', costPrice: 48, salePrice: 95, taxRate: 16, stock: 12, minStock: 6 },
-  { id: 4, sku: 'BOT-AGU', barcode: '750000000004', name: 'Agua mineral', category: 'Bebidas', costPrice: 11, salePrice: 24, taxRate: 16, stock: 8, minStock: 10 },
-]
-
 export const usePosStore = create<PosState>((set) => ({
   cart: [],
   paymentMethod: 'cash',
