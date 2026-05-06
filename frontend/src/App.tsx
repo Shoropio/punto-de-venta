@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   BadgeDollarSign,
+  Banknote,
   BarChart3,
   Boxes,
   Building2,
@@ -8,9 +9,13 @@ import {
   RotateCcw,
   Edit3,
   Loader2,
+  Lock,
   LogOut,
+  MessageSquare,
   Minus,
+  MoreHorizontal,
   PackageSearch,
+  Percent,
   Plus,
   Printer,
   ReceiptText,
@@ -18,8 +23,11 @@ import {
   Settings,
   ShieldCheck,
   Trash2,
+  UserRound,
+  Utensils,
   Users,
   WalletCards,
+  X,
 } from 'lucide-react'
 import { Button } from './components/ui/button'
 import { Card } from './components/ui/card'
@@ -159,7 +167,7 @@ const nav: Array<{ key: ModuleKey; label: string; icon: typeof BadgeDollarSign }
   { key: 'inventory', label: 'Inventario', icon: Boxes },
   { key: 'customers', label: 'Clientes', icon: Users },
   { key: 'reports', label: 'Reportes', icon: BarChart3 },
-  { key: 'settings', label: 'Configuracion', icon: Settings },
+  { key: 'settings', label: 'Configuración', icon: Settings },
 ]
 
 function mapProduct(product: ApiProduct): Product {
@@ -537,9 +545,9 @@ function App() {
         api('/settings', { method: 'POST', body: JSON.stringify({ key: 'default_tax', value: defaultTax, group: 'taxes' }) }),
       ])
       await loadSettings()
-      setMessage('Configuracion guardada correctamente.')
+      setMessage('Configuración guardada correctamente.')
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'No fue posible guardar configuracion.')
+      setMessage(error instanceof Error ? error.message : 'No fue posible guardar la configuración.')
     } finally {
       setLoading(false)
     }
@@ -594,7 +602,7 @@ function App() {
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-950">
-      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[88px_1fr_420px]">
+      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[88px_1fr]">
         <aside className="flex border-b border-slate-200 bg-white lg:flex-col lg:border-b-0 lg:border-r print:hidden">
           <div className="flex h-20 w-20 shrink-0 items-center justify-center">
             <div className="flex h-11 w-11 items-center justify-center rounded-md bg-cyan-700 text-white">
@@ -605,7 +613,9 @@ function App() {
             {nav.map((item) => (
               <button
                 key={item.key}
+                aria-label={`Ir a ${item.label}`}
                 className={`flex h-14 min-w-14 items-center justify-center rounded-md transition ${activeModule === item.key ? 'bg-slate-950 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}
+                data-testid={`nav-${item.key}`}
                 title={item.label}
                 onClick={() => setActiveModule(item.key)}
               >
@@ -636,135 +646,108 @@ function App() {
             </div>
           </header>
 
-          <div className="grid gap-5 p-5 xl:grid-cols-[1fr_330px]">
-            <section className="min-w-0">
-              {activeModule === 'sale' && (
-                <>
-                  <SectionTitle title="Catalogo rapido" subtitle="Productos disponibles para venta inmediata" action={<Button variant="ghost" onClick={loadProducts}><PackageSearch size={18} /></Button>} />
-                  <ProductGrid products={products} onAdd={addItem} />
-                </>
-              )}
+          {activeModule === 'sale' ? (
+            <PosWorkspace
+              products={products}
+              cart={cart}
+              subtotal={subtotal}
+              discount={discount}
+              tax={tax}
+              total={total}
+              loading={loading}
+              cashSessionOpen={cashSessionOpen}
+              paymentMethod={paymentMethod}
+              onAdd={addItem}
+              onRefresh={loadProducts}
+              onClear={clearCart}
+              onCharge={chargeSale}
+              onRemove={removeItem}
+              onSetPayment={setPaymentMethod}
+              onUpdateQuantity={updateQuantity}
+            />
+          ) : (
+            <div className="space-y-5 p-5">
+              <ModuleStatusBar
+                userName={user.name}
+                apiOnline={apiOnline}
+                cashSessionOpen={cashSessionOpen}
+                cashSessionId={cashSessionId}
+                lowStockCount={lowStockProducts.length}
+                message={message}
+                hasReceipt={Boolean(lastReceipt)}
+                onPrint={printReceipt}
+              />
 
-              {activeModule === 'inventory' && (
-                <InventoryModule
-                  products={products}
-                  form={productForm}
-                  loading={loading}
-                  inventoryValue={inventoryValue}
-                  estimatedProfit={estimatedProfit}
-                  lowStockCount={lowStockProducts.length}
-                  onFormChange={setProductForm}
-                  onSave={saveProduct}
-                  onCancel={() => setProductForm(emptyProductForm)}
-                  onEdit={editProduct}
-                  onAdjust={adjustStock}
-                />
-              )}
+              <section className="min-w-0">
+                {activeModule === 'inventory' && (
+                  <InventoryModule
+                    products={products}
+                    form={productForm}
+                    loading={loading}
+                    inventoryValue={inventoryValue}
+                    estimatedProfit={estimatedProfit}
+                    lowStockCount={lowStockProducts.length}
+                    onFormChange={setProductForm}
+                    onSave={saveProduct}
+                    onCancel={() => setProductForm(emptyProductForm)}
+                    onEdit={editProduct}
+                    onAdjust={adjustStock}
+                  />
+                )}
 
-              {activeModule === 'customers' && (
-                <CustomersModule
-                  customers={customers}
-                  loading={loading}
-                  name={newCustomerName}
-                  phone={newCustomerPhone}
-                  onName={setNewCustomerName}
-                  onPhone={setNewCustomerPhone}
-                  onCreate={createCustomer}
-                />
-              )}
+                {activeModule === 'customers' && (
+                  <CustomersModule
+                    customers={customers}
+                    loading={loading}
+                    name={newCustomerName}
+                    phone={newCustomerPhone}
+                    onName={setNewCustomerName}
+                    onPhone={setNewCustomerPhone}
+                    onCreate={createCustomer}
+                  />
+                )}
 
-              {activeModule === 'reports' && (
-                <ReportsModule
-                  summary={salesSummary}
-                  topProducts={topProducts}
-                  sales={sales}
-                  refunds={refunds}
-                  loading={loading}
-                  onRefund={refundSale}
-                />
-              )}
+                {activeModule === 'reports' && (
+                  <ReportsModule
+                    summary={salesSummary}
+                    topProducts={topProducts}
+                    sales={sales}
+                    refunds={refunds}
+                    loading={loading}
+                    onRefund={refundSale}
+                  />
+                )}
 
-              {activeModule === 'settings' && (
-                <SettingsModule
-                  businessName={businessName}
-                  currencyCode={currencyCode}
-                  defaultTax={defaultTax}
-                  categories={categories}
-                  brands={brands}
-                  suppliers={suppliers}
-                  branches={branches}
-                  settings={settings}
-                  loading={loading}
-                  newCategory={newCategory}
-                  newBrand={newBrand}
-                  newSupplier={newSupplier}
-                  hasReceipt={Boolean(lastReceipt)}
-                  onBusinessName={setBusinessName}
-                  onCurrencyCode={setCurrencyCode}
-                  onDefaultTax={setDefaultTax}
-                  onNewCategory={setNewCategory}
-                  onNewBrand={setNewBrand}
-                  onNewSupplier={setNewSupplier}
-                  onCreateCatalog={createCatalogItem}
-                  onSave={saveSettings}
-                  onPrint={printReceipt}
-                />
-              )}
-            </section>
-
-            <aside className="space-y-4">
-              <Card className="p-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-lg font-bold">Operacion</h2>
-                    <p className="text-sm text-slate-500">Caja 01 - {cashSessionOpen ? `Sesion ${cashSessionId}` : 'sin turno'}</p>
-                  </div>
-                  <ShieldCheck className={cashSessionOpen ? 'text-emerald-600' : 'text-slate-400'} size={24} />
-                </div>
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <StatusTile label="Usuario" value={user.name} />
-                  <StatusTile label="Estado" value={apiOnline ? 'Online' : 'Sin conexion'} />
-                </div>
-              </Card>
-
-              <Card className="p-4">
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-lg font-bold">Alertas</h2>
-                  <Building2 className="text-cyan-700" size={22} />
-                </div>
-                <div className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between rounded-md bg-red-50 p-3 text-red-800">
-                    <span>Stock bajo</span>
-                    <strong>{lowStockProducts.length}</strong>
-                  </div>
-                  <div className="rounded-md bg-slate-50 p-3 text-slate-700">{message}</div>
-                  {lastReceipt && (
-                    <Button className="w-full" variant="secondary" onClick={printReceipt}>
-                      <Printer size={18} />
-                      Imprimir recibo
-                    </Button>
-                  )}
-                </div>
-              </Card>
-            </aside>
-          </div>
+                {activeModule === 'settings' && (
+                  <SettingsModule
+                    businessName={businessName}
+                    currencyCode={currencyCode}
+                    defaultTax={defaultTax}
+                    categories={categories}
+                    brands={brands}
+                    suppliers={suppliers}
+                    branches={branches}
+                    settings={settings}
+                    loading={loading}
+                    newCategory={newCategory}
+                    newBrand={newBrand}
+                    newSupplier={newSupplier}
+                    hasReceipt={Boolean(lastReceipt)}
+                    onBusinessName={setBusinessName}
+                    onCurrencyCode={setCurrencyCode}
+                    onDefaultTax={setDefaultTax}
+                    onNewCategory={setNewCategory}
+                    onNewBrand={setNewBrand}
+                    onNewSupplier={setNewSupplier}
+                    onCreateCatalog={createCatalogItem}
+                    onSave={saveSettings}
+                    onPrint={printReceipt}
+                  />
+                )}
+              </section>
+            </div>
+          )}
         </section>
-
-        <CartPanel
-          cart={cart}
-          subtotal={subtotal}
-          discount={discount}
-          tax={tax}
-          total={total}
-          loading={loading}
-          cashSessionOpen={cashSessionOpen}
-          paymentMethod={paymentMethod}
-          onClear={clearCart}
-          onCharge={chargeSale}
-          onRemove={removeItem}
-          onSetPayment={setPaymentMethod}
-          onUpdateQuantity={updateQuantity}
-        />
       </div>
 
       {lastReceipt && <PrintableReceipt receipt={lastReceipt} userName={user.name} />}
@@ -772,42 +755,235 @@ function App() {
   )
 }
 
-function SectionTitle({ title, subtitle, action }: { title: string; subtitle: string; action?: React.ReactNode }) {
+function PosWorkspace({
+  products,
+  cart,
+  subtotal,
+  discount,
+  tax,
+  total,
+  loading,
+  cashSessionOpen,
+  paymentMethod,
+  onAdd,
+  onRefresh,
+  onClear,
+  onCharge,
+  onRemove,
+  onSetPayment,
+  onUpdateQuantity,
+}: {
+  products: Product[]
+  cart: ReturnType<typeof usePosStore.getState>['cart']
+  subtotal: number
+  discount: number
+  tax: number
+  total: number
+  loading: boolean
+  cashSessionOpen: boolean
+  paymentMethod: PaymentMethod
+  onAdd: (product: Product) => void
+  onRefresh: () => void
+  onClear: () => void
+  onCharge: () => void
+  onRemove: (productId: number) => void
+  onSetPayment: (method: PaymentMethod) => void
+  onUpdateQuantity: (productId: number, quantity: number) => void
+}) {
+  const methodLabels: Record<PaymentMethod, string> = {
+    cash: 'Efectivo',
+    card: 'Tarjeta',
+    mixed: 'Mixto',
+  }
+
   return (
-    <div className="mb-4 flex items-center justify-between gap-3">
-      <div>
-        <h2 className="text-lg font-bold">{title}</h2>
-        <p className="text-sm text-slate-500">{subtitle}</p>
-      </div>
-      {action}
+    <div className="grid min-h-[calc(100vh-113px)] bg-[#202020] text-white xl:grid-cols-[minmax(0,1fr)_536px]">
+      <section className="flex min-w-0 flex-col border-r border-[#4b4b4b]">
+        <div className="grid grid-cols-[minmax(260px,1fr)_110px_120px_130px_56px] border-b border-cyan-700 bg-[#1b1b1b] px-3 py-3 text-sm font-bold">
+          <span>Nombre del producto</span>
+          <span className="text-right">Cantidad</span>
+          <span className="text-right">Precio</span>
+          <span className="text-right">Total</span>
+          <span />
+        </div>
+
+        <div className="min-h-[360px] flex-1 overflow-auto">
+          {cart.length === 0 ? (
+            <div className="flex h-full min-h-[360px] flex-col items-center justify-center px-6 text-center text-slate-400">
+              <strong className="text-2xl text-slate-300">No hay artículos</strong>
+              <span className="mt-2 max-w-2xl text-sm">Busca, escanea o selecciona un producto para iniciar la venta.</span>
+            </div>
+          ) : (
+            cart.map((item) => (
+              <div key={item.id} className="grid grid-cols-[minmax(260px,1fr)_110px_120px_130px_56px] items-center border-b border-[#333] px-3 py-3 text-sm">
+                <div>
+                  <p className="font-semibold">{item.name}</p>
+                  <p className="text-xs text-slate-500">{item.sku}</p>
+                </div>
+                <div className="flex justify-end">
+                  <div className="grid grid-cols-[32px_42px_32px] border border-[#4b4b4b]">
+                    <button className="h-8 text-slate-300 hover:bg-[#303030]" onClick={() => onUpdateQuantity(item.id, item.quantity - 1)} aria-label={`Restar ${item.name}`}>
+                      <Minus className="mx-auto" size={14} />
+                    </button>
+                    <span className="grid h-8 place-items-center border-x border-[#4b4b4b] font-bold">{item.quantity}</span>
+                    <button className="h-8 text-slate-300 hover:bg-[#303030]" onClick={() => onUpdateQuantity(item.id, item.quantity + 1)} aria-label={`Sumar ${item.name}`}>
+                      <Plus className="mx-auto" size={14} />
+                    </button>
+                  </div>
+                </div>
+                <span className="text-right">{currency.format(item.salePrice)}</span>
+                <span className="text-right font-bold">{currency.format(item.salePrice * item.quantity - item.discount)}</span>
+                <button className="grid h-9 place-items-center text-slate-400 hover:bg-red-900/40 hover:text-white" onClick={() => onRemove(item.id)} aria-label={`Quitar ${item.name}`}>
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="border-t border-[#4b4b4b] bg-[#2a2a2a]">
+          <div className="grid gap-2 border-b border-[#3b3b3b] p-3 md:grid-cols-3">
+            {products.slice(0, 6).map((product) => (
+              <button key={product.id} className="border border-[#4b4b4b] bg-[#242424] p-3 text-left hover:border-cyan-600 hover:bg-[#303030]" onClick={() => onAdd(product)}>
+                <span className="block truncate text-sm font-semibold">{product.name}</span>
+                <span className="mt-1 block text-xs text-slate-400">{product.sku} · {currency.format(product.salePrice)}</span>
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-[1fr_210px] gap-4 p-4">
+            <div className="text-xs uppercase text-slate-500">Productos encontrados: {products.length}</div>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between"><span>Subtotal</span><span>{currency.format(subtotal)}</span></div>
+              <div className="flex justify-between"><span>Descuentos</span><span>{currency.format(discount)}</span></div>
+              <div className="flex justify-between"><span>Impuestos</span><span>{currency.format(tax)}</span></div>
+              <div className="flex justify-between border-t border-[#555] pt-2 text-2xl font-bold"><span>Total</span><span>{currency.format(total)}</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside className="grid content-start gap-1 bg-[#2d2d2d] p-1 print:hidden">
+        <div className="grid grid-cols-4 gap-1">
+          <PosAction icon={X} label="Eliminar" onClick={onClear} muted />
+          <PosAction icon={Search} label="Buscar" shortcut="F3" onClick={onRefresh} />
+          <PosAction icon={Plus} label="Cantidad" shortcut="F4" disabled />
+          <PosAction icon={ReceiptText} label="Nueva venta" shortcut="F8" onClick={onClear} />
+        </div>
+
+        <div className="grid grid-cols-3 gap-1">
+          {(['cash', 'card', 'mixed'] as const).map((method) => (
+            <button
+              key={method}
+              className={`h-16 border border-[#575757] bg-[#1f1f1f] text-sm font-semibold ${paymentMethod === method ? 'border-b-2 border-b-cyan-500 text-white' : 'text-slate-300 hover:bg-[#333]'}`}
+              onClick={() => onSetPayment(method)}
+            >
+              {methodLabels[method]}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-32 grid grid-cols-4 gap-1">
+          <PosAction icon={Banknote} label="Cajón" disabled />
+          <PosAction icon={Utensils} label="Mesa" disabled />
+          <div className="hidden xl:block" />
+          <div className="hidden xl:block" />
+          <PosAction icon={Percent} label="Descuento" shortcut="F2" disabled />
+          <PosAction icon={MessageSquare} label="Comentario" disabled />
+          <PosAction icon={UserRound} label="Cliente" disabled />
+          <PosAction icon={Users} label="Asignar" disabled />
+          <PosAction icon={PackageSearch} label="Guardar" shortcut="F9" disabled />
+          <PosAction icon={RotateCcw} label="Devolución" disabled />
+          <button className="col-span-2 h-20 border border-emerald-700 bg-emerald-700 text-lg font-bold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50" disabled={loading || !cashSessionOpen || cart.length === 0} onClick={onCharge}>
+            <span className="block text-2xl">F10</span>
+            {loading ? 'Procesando' : 'Pago'}
+          </button>
+          <PosAction icon={Lock} label="Bloquear" disabled />
+          <PosAction icon={CreditCard} label="Transferir" shortcut="F7" disabled />
+          <button className="h-20 border border-red-700 bg-red-700 text-sm font-semibold text-white hover:bg-red-600" onClick={onClear}>
+            <Trash2 className="mx-auto mb-2" size={24} />
+            Anular orden
+          </button>
+          <PosAction icon={MoreHorizontal} label="Más" disabled />
+        </div>
+      </aside>
     </div>
   )
 }
 
-function ProductGrid({ products, onAdd }: { products: Product[]; onAdd: (product: Product) => void }) {
+function PosAction({
+  icon: Icon,
+  label,
+  shortcut,
+  onClick,
+  disabled,
+  muted,
+}: {
+  icon: React.ComponentType<{ size?: number; className?: string }>
+  label: string
+  shortcut?: string
+  onClick?: () => void
+  disabled?: boolean
+  muted?: boolean
+}) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-      {products.map((product) => (
-        <Card key={product.id} className="p-4">
-          <div className="flex min-h-32 flex-col justify-between gap-4">
-            <div>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">{product.category}</span>
-                <span className={product.stock <= product.minStock ? 'text-xs font-bold text-red-600' : 'text-xs font-semibold text-slate-500'}>{product.stock} disp.</span>
-              </div>
-              <h3 className="text-base font-bold">{product.name}</h3>
-              <p className="text-xs text-slate-500">{product.sku} - {product.barcode ?? 'sin codigo'}</p>
-            </div>
-            <div className="flex items-center justify-between">
-              <strong className="text-lg">{currency.format(product.salePrice)}</strong>
-              <Button onClick={() => onAdd(product)}>
-                <Plus size={18} />
-                Agregar
-              </Button>
-            </div>
-          </div>
-        </Card>
-      ))}
+    <button className={`relative h-20 border border-[#575757] bg-[#2b2b2b] text-sm font-semibold text-white transition hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-45 ${muted ? 'text-slate-400' : ''}`} onClick={onClick} disabled={disabled}>
+      {shortcut && <span className="absolute left-2 top-2 text-xs text-slate-300">{shortcut}</span>}
+      <Icon className="mx-auto mb-2" size={28} />
+      {label}
+    </button>
+  )
+}
+
+function ModuleStatusBar({
+  userName,
+  apiOnline,
+  cashSessionOpen,
+  cashSessionId,
+  lowStockCount,
+  message,
+  hasReceipt,
+  onPrint,
+}: {
+  userName: string
+  apiOnline: boolean
+  cashSessionOpen: boolean
+  cashSessionId: number | null
+  lowStockCount: number
+  message: string
+  hasReceipt: boolean
+  onPrint: () => void
+}) {
+  return (
+    <div className="grid gap-3 xl:grid-cols-[1.2fr_1fr_1.4fr_auto]">
+      <Card className="flex items-center gap-3 p-4">
+        <ShieldCheck className={cashSessionOpen ? 'text-emerald-600' : 'text-slate-400'} size={24} />
+        <div>
+          <p className="text-xs font-semibold uppercase text-slate-500">Operación</p>
+          <p className="text-sm font-bold">Caja 01 - {cashSessionOpen ? `Sesión ${cashSessionId}` : 'sin turno'}</p>
+        </div>
+      </Card>
+      <Card className="grid grid-cols-2 gap-3 p-3 text-sm">
+        <StatusTile label="Usuario" value={userName} />
+        <StatusTile label="Estado" value={apiOnline ? 'En línea' : 'Sin conexión'} />
+      </Card>
+      <Card className="flex items-center gap-3 p-4">
+        <Building2 className="text-cyan-700" size={22} />
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase text-slate-500">Estado del módulo</p>
+          <p className="truncate text-sm text-slate-700">{message}</p>
+        </div>
+      </Card>
+      <Card className="flex items-center gap-3 p-3">
+        <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-800">
+          <span className="font-semibold">{lowStockCount}</span> stock bajo
+        </div>
+        {hasReceipt && (
+          <Button variant="secondary" onClick={onPrint}>
+            <Printer size={18} />
+            Recibo
+          </Button>
+        )}
+      </Card>
     </div>
   )
 }
@@ -914,7 +1090,7 @@ function CustomersModule({
     <div className="space-y-4">
       <Card className="grid gap-3 p-4 md:grid-cols-[1fr_180px_auto]">
         <Input placeholder="Nombre del cliente" value={name} onChange={(event) => onName(event.target.value)} />
-        <Input placeholder="Telefono" value={phone} onChange={(event) => onPhone(event.target.value)} />
+        <Input placeholder="Teléfono" value={phone} onChange={(event) => onPhone(event.target.value)} />
         <Button onClick={onCreate} disabled={loading}>
           <Plus size={18} />
           Crear
@@ -923,19 +1099,19 @@ function CustomersModule({
       <Card className="overflow-hidden">
         <div className="grid grid-cols-[1fr_140px_100px_80px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">
           <span>Cliente</span>
-          <span>Telefono</span>
+          <span>Teléfono</span>
           <span>Saldo</span>
           <span>Puntos</span>
         </div>
         {customers.map((customer) => (
           <div key={customer.id} className="grid grid-cols-[1fr_140px_100px_80px] gap-3 border-t border-slate-100 px-4 py-3 text-sm">
             <span className="font-semibold">{customer.name}</span>
-            <span className="text-slate-500">{customer.phone ?? 'Sin telefono'}</span>
+            <span className="text-slate-500">{customer.phone ?? 'Sin teléfono'}</span>
             <span>{currency.format(Number(customer.balance ?? 0))}</span>
             <span>{customer.loyalty_points ?? 0}</span>
           </div>
         ))}
-        {customers.length === 0 && <Empty text="Aun no hay clientes registrados." />}
+          {customers.length === 0 && <Empty text="Aún no hay clientes registrados." />}
       </Card>
     </div>
   )
@@ -977,7 +1153,7 @@ function ReportsModule({
               <span>{currency.format(Number(product.total))}</span>
             </div>
           ))}
-          {topProducts.length === 0 && <Empty text="Aun no hay ventas para reportar." />}
+          {topProducts.length === 0 && <Empty text="Aún no hay ventas para reportar." />}
         </Card>
 
         <Card className="overflow-hidden">
@@ -985,7 +1161,7 @@ function ReportsModule({
             <span>Venta</span>
             <span>Total</span>
             <span>Estado</span>
-            <span>Accion</span>
+            <span>Acción</span>
           </div>
           {sales.map((sale) => (
             <div key={sale.id} className="grid grid-cols-[1fr_100px_90px_92px] items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm">
@@ -997,7 +1173,7 @@ function ReportsModule({
               </Button>
             </div>
           ))}
-          {sales.length === 0 && <Empty text="Aun no hay ventas registradas." />}
+          {sales.length === 0 && <Empty text="Aún no hay ventas registradas." />}
         </Card>
       </div>
 
@@ -1016,7 +1192,7 @@ function ReportsModule({
             <span>{refund.status}</span>
           </div>
         ))}
-        {refunds.length === 0 && <Empty text="Aun no hay devoluciones registradas." />}
+        {refunds.length === 0 && <Empty text="Aún no hay devoluciones registradas." />}
       </Card>
     </div>
   )
@@ -1077,7 +1253,7 @@ function SettingsModule({
           <div className="grid gap-3 md:grid-cols-3">
             <Input className="md:col-span-3" placeholder="Nombre comercial" value={businessName} onChange={(event) => onBusinessName(event.target.value)} />
             <Input placeholder="Moneda" value={currencyCode} onChange={(event) => onCurrencyCode(event.target.value)} />
-            <Input placeholder="IVA default" type="number" value={defaultTax} onChange={(event) => onDefaultTax(event.target.value)} />
+            <Input placeholder="IVA predeterminado" type="number" value={defaultTax} onChange={(event) => onDefaultTax(event.target.value)} />
             <Button onClick={onSave} disabled={loading}>
               <Settings size={18} />
               Guardar
@@ -1086,17 +1262,17 @@ function SettingsModule({
         </Card>
 
         <Card className="p-4">
-          <h2 className="mb-3 text-lg font-bold">Impresion</h2>
-          <p className="text-sm text-slate-500">Recibo web listo para impresora del navegador. ESC/POS queda preparado para servicio local.</p>
+          <h2 className="mb-3 text-lg font-bold">Impresión</h2>
+          <p className="text-sm text-slate-500">Recibo web listo para la impresora del navegador. ESC/POS queda preparado para servicio local.</p>
           <Button className="mt-4" variant="secondary" onClick={onPrint} disabled={!hasReceipt}>
             <Printer size={18} />
-            Imprimir ultimo recibo
+            Imprimir último recibo
           </Button>
         </Card>
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <CatalogCard title="Categorias" value={newCategory} items={categories} placeholder="Nueva categoria" onValue={onNewCategory} onCreate={() => onCreateCatalog('category')} />
+        <CatalogCard title="Categorías" value={newCategory} items={categories} placeholder="Nueva categoría" onValue={onNewCategory} onCreate={() => onCreateCatalog('category')} />
         <CatalogCard title="Marcas" value={newBrand} items={brands} placeholder="Nueva marca" onValue={onNewBrand} onCreate={() => onCreateCatalog('brand')} />
         <CatalogCard title="Proveedores" value={newSupplier} items={suppliers} placeholder="Nuevo proveedor" onValue={onNewSupplier} onCreate={() => onCreateCatalog('supplier')} />
       </div>
@@ -1112,14 +1288,14 @@ function SettingsModule({
           ))}
         </Card>
         <Card className="overflow-hidden">
-          <div className="bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">Settings guardados</div>
+          <div className="bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">Configuraciones guardadas</div>
           {settings.map((setting) => (
             <div key={setting.id} className="grid grid-cols-[120px_1fr] gap-3 border-t border-slate-100 px-4 py-3 text-sm">
               <span className="font-semibold">{setting.key}</span>
               <span className="truncate text-slate-500">{typeof setting.value === 'object' ? JSON.stringify(setting.value) : String(setting.value ?? '')}</span>
             </div>
           ))}
-          {settings.length === 0 && <Empty text="Aun no hay configuraciones guardadas." />}
+          {settings.length === 0 && <Empty text="Aún no hay configuraciones guardadas." />}
         </Card>
       </div>
     </div>
@@ -1157,108 +1333,6 @@ function CatalogCard({
         {items.length === 0 && <Empty text="Sin elementos." />}
       </div>
     </Card>
-  )
-}
-
-function CartPanel({
-  cart,
-  subtotal,
-  discount,
-  tax,
-  total,
-  loading,
-  cashSessionOpen,
-  paymentMethod,
-  onClear,
-  onCharge,
-  onRemove,
-  onSetPayment,
-  onUpdateQuantity,
-}: {
-  cart: ReturnType<typeof usePosStore.getState>['cart']
-  subtotal: number
-  discount: number
-  tax: number
-  total: number
-  loading: boolean
-  cashSessionOpen: boolean
-  paymentMethod: PaymentMethod
-  onClear: () => void
-  onCharge: () => void
-  onRemove: (productId: number) => void
-  onSetPayment: (method: PaymentMethod) => void
-  onUpdateQuantity: (productId: number, quantity: number) => void
-}) {
-  return (
-    <aside className="flex min-h-[520px] flex-col border-l border-slate-200 bg-white print:hidden">
-      <div className="border-b border-slate-200 p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-semibold text-cyan-700">Venta actual</p>
-            <h2 className="text-xl font-bold">Ticket nuevo</h2>
-          </div>
-          <Button variant="ghost" onClick={onClear}>
-            <Trash2 size={18} />
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex-1 space-y-3 overflow-y-auto p-5">
-        {cart.length === 0 ? (
-          <div className="flex h-full min-h-56 items-center justify-center rounded-lg border border-dashed border-slate-300 text-center text-sm text-slate-500">
-            Escanea o agrega productos para iniciar la venta.
-          </div>
-        ) : (
-          cart.map((item) => (
-            <div key={item.id} className="rounded-lg border border-slate-200 p-3">
-              <div className="mb-3 flex justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold">{item.name}</h3>
-                  <p className="text-xs text-slate-500">{currency.format(item.salePrice)} c/u</p>
-                </div>
-                <strong>{currency.format(item.salePrice * item.quantity - item.discount)}</strong>
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center rounded-md border border-slate-200">
-                  <button className="flex h-8 w-8 items-center justify-center" onClick={() => onUpdateQuantity(item.id, item.quantity - 1)}>
-                    <Minus size={14} />
-                  </button>
-                  <span className="w-9 text-center text-sm font-bold">{item.quantity}</span>
-                  <button className="flex h-8 w-8 items-center justify-center" onClick={() => onUpdateQuantity(item.id, item.quantity + 1)}>
-                    <Plus size={14} />
-                  </button>
-                </div>
-                <Button variant="ghost" onClick={() => onRemove(item.id)}>
-                  <Trash2 size={16} />
-                </Button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="border-t border-slate-200 p-5">
-        <div className="mb-4 grid grid-cols-3 gap-2">
-          {(['cash', 'card', 'mixed'] as const).map((method) => (
-            <button key={method} className={`h-10 rounded-md border text-sm font-semibold ${paymentMethod === method ? 'border-cyan-700 bg-cyan-50 text-cyan-800' : 'border-slate-200 text-slate-600'}`} onClick={() => onSetPayment(method)}>
-              {method === 'cash' ? 'Efectivo' : method === 'card' ? 'Tarjeta' : 'Mixto'}
-            </button>
-          ))}
-        </div>
-
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{currency.format(subtotal)}</span></div>
-          <div className="flex justify-between text-slate-500"><span>Descuentos</span><span>{currency.format(discount)}</span></div>
-          <div className="flex justify-between text-slate-500"><span>Impuestos</span><span>{currency.format(tax)}</span></div>
-          <div className="flex justify-between border-t border-slate-200 pt-3 text-xl font-bold"><span>Total</span><span>{currency.format(total)}</span></div>
-        </div>
-
-        <Button className="mt-5 h-12 w-full" disabled={loading || !cashSessionOpen || cart.length === 0} onClick={onCharge}>
-          {loading ? <Loader2 className="animate-spin" size={20} /> : <CreditCard size={20} />}
-          Cobrar venta
-        </Button>
-      </div>
-    </aside>
   )
 }
 
