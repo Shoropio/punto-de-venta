@@ -14,7 +14,10 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({ message: 'Error inesperado' }))
-    throw new Error(body.message ?? 'Error de API')
+    const details = body.errors && typeof body.errors === 'object'
+      ? Object.values(body.errors).flat().join(' ')
+      : ''
+    throw new Error(details || body.message || 'Error de API')
   }
 
   return response.json()

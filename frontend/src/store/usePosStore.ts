@@ -24,7 +24,10 @@ type PosState = {
   cashSessionOpen: boolean
   cashSessionId: number | null
   addItem: (product: Product) => void
+  setCart: (cart: CartItem[]) => void
   updateQuantity: (productId: number, quantity: number) => void
+  updateDiscount: (productId: number, discount: number) => void
+  applyDiscountPercent: (percent: number) => void
   removeItem: (productId: number) => void
   clearCart: () => void
   setPaymentMethod: (method: PosState['paymentMethod']) => void
@@ -43,8 +46,22 @@ export const usePosStore = create<PosState>((set) => ({
     }
     return { cart: [...state.cart, { ...product, quantity: 1, discount: 0 }] }
   }),
+  setCart: (cart) => set({ cart }),
   updateQuantity: (productId, quantity) => set((state) => ({
     cart: state.cart.map((item) => item.id === productId ? { ...item, quantity: Math.max(1, quantity) } : item),
+  })),
+  updateDiscount: (productId, discount) => set((state) => ({
+    cart: state.cart.map((item) => {
+      if (item.id !== productId) return item
+      const lineSubtotal = item.salePrice * item.quantity
+      return { ...item, discount: Math.min(lineSubtotal, Math.max(0, discount)) }
+    }),
+  })),
+  applyDiscountPercent: (percent) => set((state) => ({
+    cart: state.cart.map((item) => {
+      const lineSubtotal = item.salePrice * item.quantity
+      return { ...item, discount: Math.round(lineSubtotal * (percent / 100) * 100) / 100 }
+    }),
   })),
   removeItem: (productId) => set((state) => ({ cart: state.cart.filter((item) => item.id !== productId) })),
   clearCart: () => set({ cart: [] }),

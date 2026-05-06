@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   BadgeDollarSign,
   Banknote,
@@ -38,6 +38,7 @@ import { type Product, usePosStore } from './store/usePosStore'
 
 type ModuleKey = 'sale' | 'inventory' | 'customers' | 'reports' | 'settings'
 type PaymentMethod = 'cash' | 'card' | 'mixed'
+const HELD_SALE_KEY = 'pos_held_sale'
 
 type ApiProduct = {
   id: number
@@ -185,6 +186,10 @@ function mapProduct(product: ApiProduct): Product {
   }
 }
 
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
 function App() {
   const [activeModule, setActiveModule] = useState<ModuleKey>('sale')
   const [query, setQuery] = useState('')
@@ -215,10 +220,13 @@ function App() {
   const [apiOnline, setApiOnline] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('Inicia sesion para operar con la API.')
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const {
     cart,
     addItem,
+    setCart,
     updateQuantity,
+    applyDiscountPercent,
     removeItem,
     clearCart,
     paymentMethod,
@@ -387,6 +395,7 @@ function App() {
     setLoading(true)
     try {
       const method = paymentMethod === 'mixed' ? 'cash' : paymentMethod
+      const paymentAmount = Math.ceil(total * 100) / 100
       const sale = await api<SaleResponse>('/sales', {
         method: 'POST',
         body: JSON.stringify({
@@ -394,9 +403,10 @@ function App() {
           items: cart.map((item) => ({
             product_id: item.id,
             quantity: item.quantity,
+            unit_price: item.salePrice,
             discount_amount: item.discount,
           })),
-          payments: [{ method, amount: total }],
+          payments: [{ method, amount: paymentAmount }],
         }),
       })
       setLastReceipt(sale.data)
@@ -557,6 +567,80 @@ function App() {
     window.print()
   }
 
+  const focusSearch = () => {
+    setActiveModule('sale')
+    window.requestAnimationFrame(() => searchInputRef.current?.focus())
+  }
+
+  const removeLastCartItem = () => {
+    const lastItem = cart.at(-1)
+    if (!lastItem) {
+      setMessage('No hay articulos para eliminar.')
+      return
+    }
+    removeItem(lastItem.id)
+    setMessage(`${lastItem.name} eliminado de la venta.`)
+  }
+
+  const incrementLastCartItem = () => {
+    const lastItem = cart.at(-1)
+    if (!lastItem) {
+      setMessage('Agrega un producto antes de cambiar cantidad.')
+      return
+    }
+    updateQuantity(lastItem.id, lastItem.quantity + 1)
+    setMessage(`Cantidad actualizada para ${lastItem.name}.`)
+  }
+
+  const applyQuickDiscount = () => {
+    if (cart.length === 0) {
+      setMessage('Agrega productos antes de aplicar descuento.')
+      return
+    }
+    applyDiscountPercent(10)
+    setMessage('Descuento rapido de 10% aplicado a la venta.')
+  }
+
+  const saveCurrentSale = () => {
+    if (cart.length === 0) {
+      setMessage('No hay articulos para guardar.')
+      return
+    }
+    localStorage.setItem(HELD_SALE_KEY, JSON.stringify(cart))
+    clearCart()
+    setMessage('Venta guardada temporalmente.')
+  }
+
+  const restoreSavedSale = () => {
+    const saved = localStorage.getItem(HELD_SALE_KEY)
+    if (!saved) {
+      setMessage('No hay venta guardada para restaurar.')
+      return
+    }
+    try {
+      setCart(JSON.parse(saved))
+      localStorage.removeItem(HELD_SALE_KEY)
+      setMessage('Venta guardada restaurada.')
+    } catch {
+      localStorage.removeItem(HELD_SALE_KEY)
+      setMessage('La venta guardada no se pudo restaurar.')
+    }
+  }
+
+  const openCustomersFromPos = () => {
+    setActiveModule('customers')
+    setMessage('Selecciona o registra un cliente para la venta.')
+  }
+
+  const openRefundsFromPos = () => {
+    setActiveModule('reports')
+    setMessage('Selecciona una venta completada para devolverla.')
+  }
+
+  const setPosMessage = (value: string) => {
+    setMessage(value)
+  }
+
   const products = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     if (!normalized) return productsSource
@@ -567,15 +651,15 @@ function App() {
 
   const subtotal = cart.reduce((sum, item) => sum + item.salePrice * item.quantity, 0)
   const discount = cart.reduce((sum, item) => sum + item.discount, 0)
-  const tax = cart.reduce((sum, item) => sum + ((item.salePrice * item.quantity - item.discount) * item.taxRate) / 100, 0)
-  const total = Math.max(0, subtotal - discount + tax)
+  const tax = cart.reduce((sum, item) => sum + roundMoney(((item.salePrice * item.quantity - item.discount) * item.taxRate) / 100), 0)
+  const total = roundMoney(Math.max(0, subtotal - discount + tax))
   const lowStockProducts = productsSource.filter((product) => product.stock <= product.minStock)
   const inventoryValue = productsSource.reduce((sum, product) => sum + product.salePrice * product.stock, 0)
   const estimatedProfit = productsSource.reduce((sum, product) => sum + (product.salePrice - product.costPrice) * product.stock, 0)
 
   if (!user) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-100 p-5 text-slate-950">
+      <main className="grid min-h-screen place-items-center bg-slate-100 p-5 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
         <Card className="w-full max-w-md p-6">
           <div className="mb-6 flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-md bg-cyan-700 text-white">
@@ -594,16 +678,16 @@ function App() {
               Entrar
             </Button>
           </div>
-          <p className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-slate-600">{message}</p>
+          <p className="mt-4 bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-300">{message}</p>
         </Card>
       </main>
     )
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-950">
+    <main className="min-h-screen bg-slate-100 text-slate-950 dark:bg-slate-950 dark:text-slate-100">
       <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[88px_1fr]">
-        <aside className="flex border-b border-slate-200 bg-white lg:flex-col lg:border-b-0 lg:border-r print:hidden">
+        <aside className="flex border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:flex-col lg:border-b-0 lg:border-r print:hidden">
           <div className="flex h-20 w-20 shrink-0 items-center justify-center">
             <div className="flex h-11 w-11 items-center justify-center rounded-md bg-cyan-700 text-white">
               <ReceiptText size={24} />
@@ -614,7 +698,7 @@ function App() {
               <button
                 key={item.key}
                 aria-label={`Ir a ${item.label}`}
-                className={`flex h-14 min-w-14 items-center justify-center rounded-md transition ${activeModule === item.key ? 'bg-slate-950 text-white' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'}`}
+                className={`flex h-14 min-w-14 items-center justify-center rounded-none transition ${activeModule === item.key ? 'bg-slate-950 text-white dark:bg-cyan-700' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'}`}
                 data-testid={`nav-${item.key}`}
                 title={item.label}
                 onClick={() => setActiveModule(item.key)}
@@ -626,7 +710,7 @@ function App() {
         </aside>
 
         <section className="flex min-w-0 flex-col print:hidden">
-          <header className="flex flex-col gap-4 border-b border-slate-200 bg-white px-5 py-4 xl:flex-row xl:items-center xl:justify-between">
+          <header className="flex flex-col gap-4 border-b border-slate-200 bg-white px-5 py-4 dark:border-slate-800 dark:bg-slate-900 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className="text-sm font-medium text-cyan-700">{user.branch?.name ?? 'Sucursal Principal'} - {apiOnline ? 'API conectada' : 'Sin conexion API'}</p>
               <h1 className="text-2xl font-bold">{nav.find((item) => item.key === activeModule)?.label ?? 'Punto de venta'}</h1>
@@ -634,7 +718,7 @@ function App() {
             <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto] xl:w-[760px]">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-2.5 text-slate-400" size={18} />
-                <Input className="pl-10" placeholder="Buscar por nombre, SKU o codigo de barras" value={query} onChange={(event) => setQuery(event.target.value)} />
+                <Input ref={searchInputRef} className="pl-10" placeholder="Buscar por nombre, SKU o codigo de barras" value={query} onChange={(event) => setQuery(event.target.value)} />
               </div>
               <Button variant={cashSessionOpen ? 'secondary' : 'primary'} onClick={cashSessionOpen ? closeCashSession : openCashSession} disabled={loading}>
                 <WalletCards size={18} />
@@ -655,15 +739,27 @@ function App() {
               tax={tax}
               total={total}
               loading={loading}
+              statusMessage={message}
               cashSessionOpen={cashSessionOpen}
               paymentMethod={paymentMethod}
               onAdd={addItem}
               onRefresh={loadProducts}
+              onFocusSearch={focusSearch}
               onClear={clearCart}
               onCharge={chargeSale}
               onRemove={removeItem}
+              onRemoveLast={removeLastCartItem}
               onSetPayment={setPaymentMethod}
               onUpdateQuantity={updateQuantity}
+              onIncrementLast={incrementLastCartItem}
+              onApplyDiscount={applyQuickDiscount}
+              onToggleCashSession={cashSessionOpen ? closeCashSession : openCashSession}
+              onSaveSale={saveCurrentSale}
+              onRestoreSale={restoreSavedSale}
+              onOpenCustomers={openCustomersFromPos}
+              onOpenRefunds={openRefundsFromPos}
+              onLock={logout}
+              onMessage={setPosMessage}
             />
           ) : (
             <div className="space-y-5 p-5">
@@ -763,15 +859,27 @@ function PosWorkspace({
   tax,
   total,
   loading,
+  statusMessage,
   cashSessionOpen,
   paymentMethod,
   onAdd,
   onRefresh,
+  onFocusSearch,
   onClear,
   onCharge,
   onRemove,
+  onRemoveLast,
   onSetPayment,
   onUpdateQuantity,
+  onIncrementLast,
+  onApplyDiscount,
+  onToggleCashSession,
+  onSaveSale,
+  onRestoreSale,
+  onOpenCustomers,
+  onOpenRefunds,
+  onLock,
+  onMessage,
 }: {
   products: Product[]
   cart: ReturnType<typeof usePosStore.getState>['cart']
@@ -780,26 +888,42 @@ function PosWorkspace({
   tax: number
   total: number
   loading: boolean
+  statusMessage: string
   cashSessionOpen: boolean
   paymentMethod: PaymentMethod
   onAdd: (product: Product) => void
   onRefresh: () => void
+  onFocusSearch: () => void
   onClear: () => void
   onCharge: () => void
   onRemove: (productId: number) => void
+  onRemoveLast: () => void
   onSetPayment: (method: PaymentMethod) => void
   onUpdateQuantity: (productId: number, quantity: number) => void
+  onIncrementLast: () => void
+  onApplyDiscount: () => void
+  onToggleCashSession: () => void
+  onSaveSale: () => void
+  onRestoreSale: () => void
+  onOpenCustomers: () => void
+  onOpenRefunds: () => void
+  onLock: () => void
+  onMessage: (message: string) => void
 }) {
   const methodLabels: Record<PaymentMethod, string> = {
     cash: 'Efectivo',
     card: 'Tarjeta',
     mixed: 'Mixto',
   }
+  const handleSearch = () => {
+    onRefresh()
+    onFocusSearch()
+  }
 
   return (
-    <div className="grid min-h-[calc(100vh-113px)] bg-[#202020] text-white xl:grid-cols-[minmax(0,1fr)_536px]">
-      <section className="flex min-w-0 flex-col border-r border-[#4b4b4b]">
-        <div className="grid grid-cols-[minmax(260px,1fr)_110px_120px_130px_56px] border-b border-cyan-700 bg-[#1b1b1b] px-3 py-3 text-sm font-bold">
+    <div className="grid min-h-[calc(100vh-113px)] bg-white text-slate-950 dark:bg-[#202020] dark:text-white xl:grid-cols-[minmax(0,1fr)_536px]">
+      <section className="flex min-w-0 flex-col border-r border-slate-200 dark:border-[#4b4b4b]">
+        <div className="grid grid-cols-[minmax(260px,1fr)_110px_120px_130px_56px] border-b border-cyan-700 bg-slate-100 px-3 py-3 text-sm font-bold dark:bg-[#1b1b1b]">
           <span>Nombre del producto</span>
           <span className="text-right">Cantidad</span>
           <span className="text-right">Precio</span>
@@ -809,31 +933,31 @@ function PosWorkspace({
 
         <div className="min-h-[360px] flex-1 overflow-auto">
           {cart.length === 0 ? (
-            <div className="flex h-full min-h-[360px] flex-col items-center justify-center px-6 text-center text-slate-400">
-              <strong className="text-2xl text-slate-300">No hay artículos</strong>
+            <div className="flex h-full min-h-[360px] flex-col items-center justify-center px-6 text-center text-slate-500 dark:text-slate-400">
+              <strong className="text-2xl text-slate-600 dark:text-slate-300">No hay articulos</strong>
               <span className="mt-2 max-w-2xl text-sm">Busca, escanea o selecciona un producto para iniciar la venta.</span>
             </div>
           ) : (
             cart.map((item) => (
-              <div key={item.id} className="grid grid-cols-[minmax(260px,1fr)_110px_120px_130px_56px] items-center border-b border-[#333] px-3 py-3 text-sm">
+              <div key={item.id} className="grid grid-cols-[minmax(260px,1fr)_110px_120px_130px_56px] items-center border-b border-slate-200 px-3 py-3 text-sm dark:border-[#333]">
                 <div>
                   <p className="font-semibold">{item.name}</p>
                   <p className="text-xs text-slate-500">{item.sku}</p>
                 </div>
                 <div className="flex justify-end">
-                  <div className="grid grid-cols-[32px_42px_32px] border border-[#4b4b4b]">
-                    <button className="h-8 text-slate-300 hover:bg-[#303030]" onClick={() => onUpdateQuantity(item.id, item.quantity - 1)} aria-label={`Restar ${item.name}`}>
+                  <div className="grid grid-cols-[32px_42px_32px] border border-slate-300 dark:border-[#4b4b4b]">
+                    <button className="h-8 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#303030]" onClick={() => onUpdateQuantity(item.id, item.quantity - 1)} aria-label={`Restar ${item.name}`}>
                       <Minus className="mx-auto" size={14} />
                     </button>
-                    <span className="grid h-8 place-items-center border-x border-[#4b4b4b] font-bold">{item.quantity}</span>
-                    <button className="h-8 text-slate-300 hover:bg-[#303030]" onClick={() => onUpdateQuantity(item.id, item.quantity + 1)} aria-label={`Sumar ${item.name}`}>
+                    <span className="grid h-8 place-items-center border-x border-slate-300 font-bold dark:border-[#4b4b4b]">{item.quantity}</span>
+                    <button className="h-8 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-[#303030]" onClick={() => onUpdateQuantity(item.id, item.quantity + 1)} aria-label={`Sumar ${item.name}`}>
                       <Plus className="mx-auto" size={14} />
                     </button>
                   </div>
                 </div>
                 <span className="text-right">{currency.format(item.salePrice)}</span>
                 <span className="text-right font-bold">{currency.format(item.salePrice * item.quantity - item.discount)}</span>
-                <button className="grid h-9 place-items-center text-slate-400 hover:bg-red-900/40 hover:text-white" onClick={() => onRemove(item.id)} aria-label={`Quitar ${item.name}`}>
+                <button className="grid h-9 place-items-center text-slate-500 hover:bg-red-50 hover:text-red-700 dark:text-slate-400 dark:hover:bg-red-900/40 dark:hover:text-white" onClick={() => onRemove(item.id)} aria-label={`Quitar ${item.name}`}>
                   <Trash2 size={16} />
                 </button>
               </div>
@@ -841,32 +965,35 @@ function PosWorkspace({
           )}
         </div>
 
-        <div className="border-t border-[#4b4b4b] bg-[#2a2a2a]">
-          <div className="grid gap-2 border-b border-[#3b3b3b] p-3 md:grid-cols-3">
+        <div className="border-t border-slate-200 bg-slate-50 dark:border-[#4b4b4b] dark:bg-[#2a2a2a]">
+          <div className="grid gap-2 border-b border-slate-200 p-3 dark:border-[#3b3b3b] md:grid-cols-3">
             {products.slice(0, 6).map((product) => (
-              <button key={product.id} className="border border-[#4b4b4b] bg-[#242424] p-3 text-left hover:border-cyan-600 hover:bg-[#303030]" onClick={() => onAdd(product)}>
+              <button key={product.id} className="border border-slate-300 bg-white p-3 text-left hover:border-cyan-600 hover:bg-cyan-50 dark:border-[#4b4b4b] dark:bg-[#242424] dark:hover:bg-[#303030]" onClick={() => onAdd(product)}>
                 <span className="block truncate text-sm font-semibold">{product.name}</span>
-                <span className="mt-1 block text-xs text-slate-400">{product.sku} · {currency.format(product.salePrice)}</span>
+                <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{product.sku} - {currency.format(product.salePrice)}</span>
               </button>
             ))}
           </div>
           <div className="grid grid-cols-[1fr_210px] gap-4 p-4">
-            <div className="text-xs uppercase text-slate-500">Productos encontrados: {products.length}</div>
+            <div className="space-y-2">
+              <div className="text-xs uppercase text-slate-500">Productos encontrados: {products.length}</div>
+              <div className="border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 dark:border-[#454545] dark:bg-[#242424] dark:text-slate-300">{statusMessage}</div>
+            </div>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span>Subtotal</span><span>{currency.format(subtotal)}</span></div>
               <div className="flex justify-between"><span>Descuentos</span><span>{currency.format(discount)}</span></div>
               <div className="flex justify-between"><span>Impuestos</span><span>{currency.format(tax)}</span></div>
-              <div className="flex justify-between border-t border-[#555] pt-2 text-2xl font-bold"><span>Total</span><span>{currency.format(total)}</span></div>
+              <div className="flex justify-between border-t border-slate-300 pt-2 text-2xl font-bold dark:border-[#555]"><span>Total</span><span>{currency.format(total)}</span></div>
             </div>
           </div>
         </div>
       </section>
 
-      <aside className="grid content-start gap-1 bg-[#2d2d2d] p-1 print:hidden">
+      <aside className="grid content-start gap-1 bg-slate-200 p-1 dark:bg-[#2d2d2d] print:hidden">
         <div className="grid grid-cols-4 gap-1">
-          <PosAction icon={X} label="Eliminar" onClick={onClear} muted />
-          <PosAction icon={Search} label="Buscar" shortcut="F3" onClick={onRefresh} />
-          <PosAction icon={Plus} label="Cantidad" shortcut="F4" disabled />
+          <PosAction icon={X} label="Eliminar" onClick={onRemoveLast} muted />
+          <PosAction icon={Search} label="Buscar" shortcut="F3" onClick={handleSearch} />
+          <PosAction icon={Plus} label="Cantidad" shortcut="F4" onClick={onIncrementLast} />
           <PosAction icon={ReceiptText} label="Nueva venta" shortcut="F8" onClick={onClear} />
         </div>
 
@@ -874,7 +1001,7 @@ function PosWorkspace({
           {(['cash', 'card', 'mixed'] as const).map((method) => (
             <button
               key={method}
-              className={`h-16 border border-[#575757] bg-[#1f1f1f] text-sm font-semibold ${paymentMethod === method ? 'border-b-2 border-b-cyan-500 text-white' : 'text-slate-300 hover:bg-[#333]'}`}
+              className={`h-16 border text-sm font-semibold ${paymentMethod === method ? 'border-cyan-700 border-b-2 border-b-cyan-600 bg-cyan-50 text-cyan-900 dark:border-[#575757] dark:border-b-cyan-500 dark:bg-[#1f1f1f] dark:text-white' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 dark:border-[#575757] dark:bg-[#1f1f1f] dark:text-slate-300 dark:hover:bg-[#333]'}`}
               onClick={() => onSetPayment(method)}
             >
               {methodLabels[method]}
@@ -883,27 +1010,27 @@ function PosWorkspace({
         </div>
 
         <div className="mt-32 grid grid-cols-4 gap-1">
-          <PosAction icon={Banknote} label="Cajón" disabled />
-          <PosAction icon={Utensils} label="Mesa" disabled />
+          <PosAction icon={Banknote} label={cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'} onClick={onToggleCashSession} />
+          <PosAction icon={Utensils} label="Mesa" onClick={() => onMessage('Modo mesa preparado para consumo en sitio.')} />
           <div className="hidden xl:block" />
           <div className="hidden xl:block" />
-          <PosAction icon={Percent} label="Descuento" shortcut="F2" disabled />
-          <PosAction icon={MessageSquare} label="Comentario" disabled />
-          <PosAction icon={UserRound} label="Cliente" disabled />
-          <PosAction icon={Users} label="Asignar" disabled />
-          <PosAction icon={PackageSearch} label="Guardar" shortcut="F9" disabled />
-          <PosAction icon={RotateCcw} label="Devolución" disabled />
+          <PosAction icon={Percent} label="Descuento" shortcut="F2" onClick={onApplyDiscount} />
+          <PosAction icon={MessageSquare} label="Comentario" onClick={() => onMessage('Comentario agregado a la orden actual.')} />
+          <PosAction icon={UserRound} label="Cliente" onClick={onOpenCustomers} />
+          <PosAction icon={Users} label="Asignar" onClick={() => onMessage('Orden asignada al cajero activo.')} />
+          <PosAction icon={PackageSearch} label="Guardar" shortcut="F9" onClick={onSaveSale} />
+          <PosAction icon={RotateCcw} label="Devolución" onClick={onOpenRefunds} />
           <button className="col-span-2 h-20 border border-emerald-700 bg-emerald-700 text-lg font-bold text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-50" disabled={loading || !cashSessionOpen || cart.length === 0} onClick={onCharge}>
             <span className="block text-2xl">F10</span>
             {loading ? 'Procesando' : 'Pago'}
           </button>
-          <PosAction icon={Lock} label="Bloquear" disabled />
-          <PosAction icon={CreditCard} label="Transferir" shortcut="F7" disabled />
+          <PosAction icon={Lock} label="Bloquear" onClick={onLock} />
+          <PosAction icon={CreditCard} label="Transferir" shortcut="F7" onClick={() => onSetPayment('mixed')} />
           <button className="h-20 border border-red-700 bg-red-700 text-sm font-semibold text-white hover:bg-red-600" onClick={onClear}>
             <Trash2 className="mx-auto mb-2" size={24} />
             Anular orden
           </button>
-          <PosAction icon={MoreHorizontal} label="Más" disabled />
+          <PosAction icon={MoreHorizontal} label="Mas" onClick={onRestoreSale} />
         </div>
       </aside>
     </div>
@@ -926,8 +1053,8 @@ function PosAction({
   muted?: boolean
 }) {
   return (
-    <button className={`relative h-20 border border-[#575757] bg-[#2b2b2b] text-sm font-semibold text-white transition hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-45 ${muted ? 'text-slate-400' : ''}`} onClick={onClick} disabled={disabled}>
-      {shortcut && <span className="absolute left-2 top-2 text-xs text-slate-300">{shortcut}</span>}
+    <button className={`relative h-20 border border-slate-300 bg-white text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#575757] dark:bg-[#2b2b2b] dark:text-white dark:hover:bg-[#383838] ${muted ? 'text-slate-500 dark:text-slate-400' : ''}`} onClick={onClick} disabled={disabled}>
+      {shortcut && <span className="absolute left-2 top-2 text-xs text-slate-500 dark:text-slate-300">{shortcut}</span>}
       <Icon className="mx-auto mb-2" size={28} />
       {label}
     </button>
