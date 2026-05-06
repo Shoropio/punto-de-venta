@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   color: #15202b;
   background: #f5f7fb;
@@ -20,10 +22,49 @@ body {
   margin: 0;
 }
 
+.dark body {
+  background: #202020;
+}
+
+.dark .bg-white,
+.dark .bg-slate-50 {
+  background-color: #242424 !important;
+}
+
+.dark .bg-stone-100,
+.dark .bg-stone-50 {
+  background-color: #202020 !important;
+}
+
+.dark .border-slate-100,
+.dark .border-slate-200,
+.dark .border-stone-300 {
+  border-color: #333333 !important;
+}
+
+.dark .text-slate-950,
+.dark .text-slate-900,
+.dark .text-slate-700,
+.dark .text-stone-950,
+.dark .text-stone-900 {
+  color: #ffffff !important;
+}
+
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-stone-600,
+.dark .text-stone-500 {
+  color: #a8a29e !important;
+}
+
+.dark .shadow-sm {
+  box-shadow: none !important;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #e5edf5;
-    background: #111827;
+    background: #202020;
   }
 }
 

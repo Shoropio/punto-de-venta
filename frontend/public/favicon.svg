@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="POS Profesional">
-  <rect width="64" height="64" fill="#0891b2"/>
-  <path fill="#ffffff" d="M18 12h28a4 4 0 0 1 4 4v32a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4Zm2 6v28h24V18H20Z"/>
-  <path fill="#0891b2" d="M24 23h16v4H24v-4Zm0 8h16v4H24v-4Zm0 8h10v4H24v-4Z"/>
-  <path fill="#ffffff" d="M48 20h4v24h-4z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Punto de Venta">
+  <rect width="64" height="64" fill="#202020"/>
+  <path fill="#f8fafc" d="M18 12h28a4 4 0 0 1 4 4v32a4 4 0 0 1-4 4H18a4 4 0 0 1-4-4V16a4 4 0 0 1 4-4Zm2 6v28h24V18H20Z"/>
+  <path fill="#202020" d="M24 23h16v4H24v-4Zm0 8h16v4H24v-4Zm0 8h10v4H24v-4Z"/>
+  <path fill="#0088cc" d="M48 20h4v24h-4z"/>
 </svg>
