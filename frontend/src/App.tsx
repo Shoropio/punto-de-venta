@@ -1009,7 +1009,7 @@ function PosWorkspace({
           ))}
         </div>
 
-        <div className="mt-32 grid grid-cols-4 gap-1">
+        <div className="mt-1 grid grid-cols-4 gap-1">
           <PosAction icon={Banknote} label={cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'} onClick={onToggleCashSession} />
           <PosAction icon={Utensils} label="Mesa" onClick={() => onMessage('Modo mesa preparado para consumo en sitio.')} />
           <div className="hidden xl:block" />
