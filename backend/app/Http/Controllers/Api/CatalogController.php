@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Branch;
 use App\Models\Brand;
 use App\Models\Category;
 use App\Models\Customer;
@@ -16,6 +17,7 @@ class CatalogController extends Controller
     public function brands(Request $request) { return Brand::query()->latest()->paginate($request->integer('per_page', 50)); }
     public function suppliers(Request $request) { return Supplier::query()->latest()->paginate($request->integer('per_page', 50)); }
     public function customers(Request $request) { return Customer::query()->latest()->paginate($request->integer('per_page', 50)); }
+    public function branches(Request $request) { return Branch::query()->latest()->paginate($request->integer('per_page', 50)); }
 
     public function storeCategory(Request $request)
     {
@@ -49,6 +51,17 @@ class CatalogController extends Controller
             'phone' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
+        ]));
+    }
+
+    public function storeBranch(Request $request)
+    {
+        return Branch::create($request->validate([
+            'name' => ['required', 'string', 'max:160'],
+            'code' => ['required', 'string', 'max:40', 'unique:branches,code'],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'email' => ['nullable', 'email'],
+            'address' => ['nullable', 'string'],
         ]));
     }
 }

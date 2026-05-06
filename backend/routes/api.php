@@ -7,8 +7,10 @@ use App\Http\Controllers\Api\CashSessionController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\RefundController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SaleController;
+use App\Http\Controllers\Api\SettingController;
 
 Route::post('/auth/login', [AuthController::class, 'login']);
 
@@ -26,6 +28,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/suppliers', [CatalogController::class, 'storeSupplier']);
     Route::get('/customers', [CatalogController::class, 'customers']);
     Route::post('/customers', [CatalogController::class, 'storeCustomer']);
+    Route::get('/branches', [CatalogController::class, 'branches']);
+    Route::post('/branches', [CatalogController::class, 'storeBranch']);
+
+    Route::get('/settings', [SettingController::class, 'index']);
+    Route::post('/settings', [SettingController::class, 'upsert']);
 
     Route::get('/cash-sessions/current', [CashSessionController::class, 'current']);
     Route::post('/cash-sessions/open', [CashSessionController::class, 'open']);
@@ -35,6 +42,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/sales', [SaleController::class, 'store']);
     Route::get('/sales/{sale}', [SaleController::class, 'show']);
     Route::post('/sales/{sale}/cancel', [SaleController::class, 'cancel']);
+
+    Route::get('/refunds', [RefundController::class, 'index']);
+    Route::post('/refunds', [RefundController::class, 'store']);
 
     Route::get('/stock-movements', [InventoryController::class, 'movements']);
     Route::post('/stock-movements', [InventoryController::class, 'move']);
