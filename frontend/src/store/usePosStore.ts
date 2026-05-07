@@ -20,7 +20,7 @@ export type CartItem = Product & {
 
 type PosState = {
   cart: CartItem[]
-  paymentMethod: 'cash' | 'card' | 'mixed'
+  paymentMethod: 'cash' | 'card' | 'mixed' | 'transfer' | 'credit'
   cashSessionOpen: boolean
   cashSessionId: number | null
   addItem: (product: Product) => void
