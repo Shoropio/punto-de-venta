@@ -3,10 +3,16 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BarcodeController;
+use App\Http\Controllers\Api\CashMovementController;
 use App\Http\Controllers\Api\CashSessionController;
 use App\Http\Controllers\Api\CatalogController;
+use App\Http\Controllers\Api\CreditPaymentController;
+use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\InventoryController;
+use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\RefundController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SaleController;
@@ -34,14 +40,32 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/settings', [SettingController::class, 'index']);
     Route::post('/settings', [SettingController::class, 'upsert']);
 
+    Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
+    Route::post('/payment-methods', [PaymentMethodController::class, 'store']);
+    Route::put('/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'update']);
+
     Route::get('/cash-sessions/current', [CashSessionController::class, 'current']);
     Route::post('/cash-sessions/open', [CashSessionController::class, 'open']);
     Route::post('/cash-sessions/{cashSession}/close', [CashSessionController::class, 'close']);
+    Route::get('/cash-movements', [CashMovementController::class, 'index']);
+    Route::post('/cash-movements', [CashMovementController::class, 'store']);
 
     Route::get('/sales', [SaleController::class, 'index']);
     Route::post('/sales', [SaleController::class, 'store']);
     Route::get('/sales/{sale}', [SaleController::class, 'show']);
     Route::post('/sales/{sale}/cancel', [SaleController::class, 'cancel']);
+
+    Route::get('/credit-payments', [CreditPaymentController::class, 'index']);
+    Route::post('/credit-payments', [CreditPaymentController::class, 'store']);
+
+    Route::get('/promotions', [PromotionController::class, 'index']);
+    Route::post('/promotions', [PromotionController::class, 'store']);
+
+    Route::get('/invoices', [InvoiceController::class, 'index']);
+    Route::post('/invoices', [InvoiceController::class, 'store']);
+
+    Route::get('/barcodes/generate', [BarcodeController::class, 'generate']);
+    Route::post('/products/{product}/barcode', [BarcodeController::class, 'assign']);
 
     Route::get('/refunds', [RefundController::class, 'index']);
     Route::post('/refunds', [RefundController::class, 'store']);

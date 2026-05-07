@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\CashSession;
+use App\Models\Customer;
 use App\Models\Product;
+use App\Models\Promotion;
 use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -70,8 +72,29 @@ class SaleService
                 $this->stockService->move($product, 'sale', $quantity, $user, $user->branch_id, $sale, 'Venta ' . $sale->folio);
             }
 
+            if (! empty($data['promotion_code'])) {
+                $promotion = Promotion::currentlyActive()->where('code', $data['promotion_code'])->first();
+
+                if ($promotion && (float) $promotion->min_sale_amount <= $subtotal) {
+                    $discountTotal += $promotion->discount_type === 'percent'
+                        ? round($subtotal * ((float) $promotion->discount_value / 100), 2)
+                        : (float) $promotion->discount_value;
+                }
+            }
+
+            $discountTotal = min($discountTotal, $subtotal);
             $total = round(max(0, $subtotal - $discountTotal) + $taxTotal, 2);
             $paidTotal = collect($data['payments'])->sum(fn (array $payment): float => (float) $payment['amount']);
+            $creditTotal = collect($data['payments'])
+                ->where('method', 'credit')
+                ->sum(fn (array $payment): float => (float) $payment['amount']);
+            $cashTotal = collect($data['payments'])
+                ->where('method', 'cash')
+                ->sum(fn (array $payment): float => (float) $payment['amount']);
+
+            if ($creditTotal > 0 && empty($data['customer_id'])) {
+                throw ValidationException::withMessages(['customer_id' => 'Selecciona un cliente para venta a credito.']);
+            }
 
             if ($paidTotal < $total) {
                 throw ValidationException::withMessages(['payments' => 'El pago no cubre el total de la venta.']);
@@ -83,13 +106,18 @@ class SaleService
 
             $sale->update([
                 'subtotal' => round($subtotal, 2),
+                'discount_total' => round($discountTotal, 2),
                 'tax_total' => round($taxTotal, 2),
                 'total' => $total,
                 'paid_total' => round($paidTotal, 2),
                 'change_total' => round($paidTotal - $total, 2),
             ]);
 
-            $session->increment('expected_amount', $total);
+            if ($creditTotal > 0) {
+                Customer::whereKey($data['customer_id'])->increment('balance', $creditTotal);
+            }
+
+            $session->increment('expected_amount', $cashTotal);
 
             return $sale->load(['items', 'payments']);
         });
