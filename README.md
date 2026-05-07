@@ -1,6 +1,30 @@
 # POS Profesional
 
-Sistema POS original con frontend React + Vite + TypeScript y backend Laravel + Sanctum.
+Sistema de punto de venta con frontend React + TypeScript y backend Laravel + Sanctum.
+
+## Modulos
+
+| Modulo | Descripcion |
+|---|---|
+| **Venta** | Punto de venta con busqueda de productos, carrito, pagos mixtos y recibos |
+| **Inventario** | CRUD de productos, ajustes de stock, valor de inventario |
+| **Clientes** | Registro, historial de compras, creditos y cuentas por cobrar |
+| **Caja** | Sesiones de caja, depositos y retiros |
+| **Creditos** | Seguimiento de creditos y abonos de clientes |
+| **Promociones** | Codigos de descuento y promociones activas |
+| **Formas de pago** | Configuracion de medios de pago (efectivo, tarjeta, transferencia, credito) |
+| **Facturacion** | Generacion de facturas fiscales vinculadas a ventas |
+| **Codigos de barras** | Generacion y asignacion de codigos a productos |
+| **Impresora** | Configuracion de impresion de tickets |
+| **Reportes** | Resumen de ventas, productos mas vendidos, historial e inventario |
+| **Configuracion** | Datos del negocio, moneda, impuestos y catalogos (categorias, marcas, proveedores, sucursales) |
+
+## Stack
+
+- **Frontend:** React 19, Vite, TypeScript, Tailwind CSS v4, Zustand, React Query
+- **Backend:** Laravel 13, Sanctum
+- **Base de datos:** MySQL 8.4 (soporta PostgreSQL)
+- **Docker:** Docker Compose con MySQL, backend y frontend
 
 ## Requisitos
 
