@@ -43,7 +43,7 @@ git clone https://github.com/Shoropio/punto-de-venta.git
 ```
 
 ```powershell
-cd C:\Users\Shoropio\Desktop\punto-de-venta
+cd punto-de-venta
 ```
 
 Backend:
@@ -56,7 +56,7 @@ php artisan serve --host=127.0.0.1 --port=8000
 Frontend, en otra terminal:
 
 ```powershell
-cd C:\Users\Shoropio\Desktop\punto-de-venta\frontend
+cd frontend
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
