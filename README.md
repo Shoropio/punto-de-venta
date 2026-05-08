@@ -69,8 +69,8 @@ http://127.0.0.1:5173
 ## Credenciales iniciales
 
 ```txt
-Email: admin@example.com
-Password: password
+Correo electrónico: admin@example.com
+Contraseña: password
 ```
 
 ## Reiniciar base de datos
@@ -105,7 +105,7 @@ Tambien puedes levantar la pila con Docker:
 Primera vez, o cuando cambien `Dockerfile`, dependencias o configuracion de Docker:
 
 ```powershell
-cd C:\Users\Shoropio\Desktop\punto-de-venta
+cd punto-de-venta
 docker compose up --build
 ```
 
@@ -144,5 +144,11 @@ Servicios:
 La arquitectura general esta en:
 
 ```txt
-docs/ARCHITECTURE.md
+[ARCHITECTURE.md](./docs/ARCHITECTURE.md)
 ```
+
+---
+
+## Licencia
+
+© 2026 Shoropio Corporation. Todos los derechos reservados.
