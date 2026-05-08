@@ -3,18 +3,30 @@ import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
 import { currency } from '../../lib/utils'
-import type { ProductForm } from '../../types'
+import type { NamedCatalog, ProductForm } from '../../types'
 import type { Product } from '../../store/usePosStore'
 import { Metric } from '../../components/shared/Metric'
+import { CatalogCard } from '../../components/shared/CatalogCard'
+import { SelectBox } from '../../components/shared/SelectBox'
 
 export function InventoryModule({
   products,
   form,
   loading,
+  categories,
+  brands,
+  suppliers,
+  newCategory,
+  newBrand,
+  newSupplier,
   inventoryValue,
   estimatedProfit,
   lowStockCount,
   onFormChange,
+  onNewCategory,
+  onNewBrand,
+  onNewSupplier,
+  onCreateCatalog,
   onSave,
   onCancel,
   onEdit,
@@ -25,10 +37,20 @@ export function InventoryModule({
   products: Product[]
   form: ProductForm
   loading: boolean
+  categories: NamedCatalog[]
+  brands: NamedCatalog[]
+  suppliers: NamedCatalog[]
+  newCategory: string
+  newBrand: string
+  newSupplier: string
   inventoryValue: number
   estimatedProfit: number
   lowStockCount: number
   onFormChange: (form: ProductForm) => void
+  onNewCategory: (value: string) => void
+  onNewBrand: (value: string) => void
+  onNewSupplier: (value: string) => void
+  onCreateCatalog: (kind: 'category' | 'brand' | 'supplier') => void
   onSave: () => void
   onCancel: () => void
   onEdit: (product: Product) => void
@@ -48,17 +70,32 @@ export function InventoryModule({
       <Card className="p-4">
         <h2 className="mb-3 text-lg font-bold">{form.id ? 'Editar producto' : 'Nuevo producto'}</h2>
         <div className="grid gap-3 md:grid-cols-4">
-          <div className="flex gap-1">
-            <Input placeholder="SKU automatico" value={form.sku} onChange={(event) => onFormChange({ ...form, sku: event.target.value })} />
-            <Button aria-label="Regenerar SKU y codigo" className="px-3" variant="secondary" onClick={onRegenerate}><RefreshCw size={16} /></Button>
+          <div className="relative">
+            <Input className="pr-11" placeholder="SKU automatico" value={form.sku} onChange={(event) => onFormChange({ ...form, sku: event.target.value })} />
+            <Button aria-label="Generar SKU y codigo" className="absolute right-1 top-1 h-8 px-2" variant="ghost" onClick={onRegenerate}><RefreshCw size={15} /></Button>
           </div>
-          <Input placeholder="Codigo automatico" value={form.barcode} onChange={(event) => onFormChange({ ...form, barcode: event.target.value })} />
+          <div className="relative">
+            <Input className="pr-11" placeholder="Codigo automatico" value={form.barcode} onChange={(event) => onFormChange({ ...form, barcode: event.target.value })} />
+            <Button aria-label="Generar codigo y SKU" className="absolute right-1 top-1 h-8 px-2" variant="ghost" onClick={onRegenerate}><RefreshCw size={15} /></Button>
+          </div>
           <Input className="md:col-span-2" placeholder="Nombre" value={form.name} onChange={(event) => onFormChange({ ...form, name: event.target.value })} />
           <Input placeholder="Costo" type="number" value={form.cost_price} onChange={(event) => onFormChange({ ...form, cost_price: event.target.value })} />
           <Input placeholder="Precio" type="number" value={form.sale_price} onChange={(event) => onFormChange({ ...form, sale_price: event.target.value })} />
           <Input placeholder="IVA %" type="number" value={form.tax_rate} onChange={(event) => onFormChange({ ...form, tax_rate: event.target.value })} />
           <Input placeholder="Stock inicial" type="number" value={form.stock} onChange={(event) => onFormChange({ ...form, stock: event.target.value })} />
           <Input placeholder="Stock minimo" type="number" value={form.min_stock} onChange={(event) => onFormChange({ ...form, min_stock: event.target.value })} />
+          <SelectBox value={form.category_id} onChange={(value) => onFormChange({ ...form, category_id: value })}>
+            <option value="">Categoria</option>
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </SelectBox>
+          <SelectBox value={form.brand_id} onChange={(value) => onFormChange({ ...form, brand_id: value })}>
+            <option value="">Marca</option>
+            {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+          </SelectBox>
+          <SelectBox value={form.supplier_id} onChange={(value) => onFormChange({ ...form, supplier_id: value })}>
+            <option value="">Proveedor</option>
+            {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+          </SelectBox>
         </div>
         <div className="mt-3 flex gap-2">
           <Button onClick={onSave} disabled={loading}>
@@ -68,6 +105,12 @@ export function InventoryModule({
           {form.id && <Button variant="secondary" onClick={onCancel}>Cancelar</Button>}
         </div>
       </Card>
+
+      <div className="grid gap-4 xl:grid-cols-3">
+        <CatalogCard title="Categorias" value={newCategory} items={categories} placeholder="Nueva categoria" onValue={onNewCategory} onCreate={() => onCreateCatalog('category')} />
+        <CatalogCard title="Marcas" value={newBrand} items={brands} placeholder="Nueva marca" onValue={onNewBrand} onCreate={() => onCreateCatalog('brand')} />
+        <CatalogCard title="Proveedores" value={newSupplier} items={suppliers} placeholder="Nuevo proveedor" onValue={onNewSupplier} onCreate={() => onCreateCatalog('supplier')} />
+      </div>
 
       <Card className="overflow-hidden">
         <div className="grid grid-cols-[1fr_120px_80px_100px_160px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">

@@ -4,6 +4,9 @@ export type Product = {
   id: number
   sku: string
   barcode?: string
+  categoryId?: number | null
+  brandId?: number | null
+  supplierId?: number | null
   name: string
   category: string
   costPrice: number

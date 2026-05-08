@@ -5,6 +5,7 @@ import { Input } from '../../components/ui/input'
 import { currency } from '../../lib/utils'
 import type { Customer, CustomerForm } from '../../types'
 import { Empty } from '../../components/shared/Empty'
+import { SelectBox } from '../../components/shared/SelectBox'
 
 export function CustomersModule({
   customers,
@@ -33,12 +34,12 @@ export function CustomersModule({
           <Input className="md:col-span-2" placeholder="Nombre del cliente" value={form.name} onChange={(event) => onFormChange({ ...form, name: event.target.value })} />
           <Input placeholder="Telefono" value={form.phone} onChange={(event) => onFormChange({ ...form, phone: event.target.value })} />
           <Input placeholder="Email" value={form.email} onChange={(event) => onFormChange({ ...form, email: event.target.value })} />
-          <select className="border border-slate-300 bg-white px-3 py-2 text-sm" value={form.identification_type} onChange={(event) => onFormChange({ ...form, identification_type: event.target.value })}>
+          <SelectBox value={form.identification_type} onChange={(value) => onFormChange({ ...form, identification_type: value })}>
             <option value="01">Fisica</option>
             <option value="02">Juridica</option>
             <option value="03">DIMEX</option>
             <option value="04">NITE</option>
-          </select>
+          </SelectBox>
           <Input placeholder="Identificacion" value={form.identification_number} onChange={(event) => onFormChange({ ...form, identification_number: event.target.value })} />
           <Input placeholder="Limite credito" type="number" value={form.credit_limit} onChange={(event) => onFormChange({ ...form, credit_limit: event.target.value })} />
           <Input placeholder="Direccion" value={form.address} onChange={(event) => onFormChange({ ...form, address: event.target.value })} />

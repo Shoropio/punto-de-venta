@@ -28,7 +28,7 @@ export function CashModule({ movements, type, amount, reason, loading, cashSessi
         </SelectBox>
         <Input placeholder="Monto" type="number" value={amount} onChange={(event) => onAmount(event.target.value)} />
         <Input placeholder="Motivo" value={reason} onChange={(event) => onReason(event.target.value)} />
-        <Button onClick={onCreate} disabled={loading || !cashSessionOpen}><Banknote size={18} /> Registrar</Button>
+        <Button title={cashSessionOpen ? undefined : 'Abre caja antes de registrar'} onClick={onCreate} disabled={loading || !amount || !reason.trim()}><Banknote size={18} /> Registrar</Button>
       </Card>
       <DataCard title="Depositos y retiros" empty="No hay movimientos de caja.">
         {movements.map((movement) => (

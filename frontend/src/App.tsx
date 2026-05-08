@@ -38,7 +38,7 @@ const nav: NavItem[] = [
   { key: 'invoices', label: 'Factura', icon: ReceiptText },
   { key: 'barcodes', label: 'Codigos', icon: Barcode },
   { key: 'printer', label: 'Impresora', icon: Printer },
-  { key: 'settings', label: 'Configuraci?n', icon: Settings },
+  { key: 'settings', label: 'Configuración', icon: Settings },
 ]
 
 function App() {
@@ -365,9 +365,20 @@ function App() {
 
     setLoading(true)
     try {
+      const numberOrZero = (value: string) => value === '' ? 0 : Number(value)
       const body = JSON.stringify({
-        ...productForm,
+        sku: productForm.sku || null,
         barcode: productForm.barcode || null,
+        category_id: productForm.category_id ? Number(productForm.category_id) : null,
+        brand_id: productForm.brand_id ? Number(productForm.brand_id) : null,
+        supplier_id: productForm.supplier_id ? Number(productForm.supplier_id) : null,
+        name: productForm.name,
+        cost_price: numberOrZero(productForm.cost_price),
+        sale_price: numberOrZero(productForm.sale_price),
+        tax_rate: numberOrZero(productForm.tax_rate),
+        stock: numberOrZero(productForm.stock),
+        min_stock: numberOrZero(productForm.min_stock),
+        unit: productForm.unit || 'piece',
         track_stock: true,
         is_active: true,
       })
@@ -394,6 +405,9 @@ function App() {
       id: product.id,
       sku: product.sku,
       barcode: product.barcode ?? '',
+      category_id: product.categoryId ? String(product.categoryId) : '',
+      brand_id: product.brandId ? String(product.brandId) : '',
+      supplier_id: product.supplierId ? String(product.supplierId) : '',
       name: product.name,
       cost_price: String(product.costPrice),
       sale_price: String(product.salePrice),
@@ -980,10 +994,20 @@ function App() {
                     products={products}
                     form={productForm}
                     loading={loading}
+                    categories={categories}
+                    brands={brands}
+                    suppliers={suppliers}
+                    newCategory={newCategory}
+                    newBrand={newBrand}
+                    newSupplier={newSupplier}
                     inventoryValue={inventoryValue}
                     estimatedProfit={estimatedProfit}
                     lowStockCount={lowStockProducts.length}
                     onFormChange={setProductForm}
+                    onNewCategory={setNewCategory}
+                    onNewBrand={setNewBrand}
+                    onNewSupplier={setNewSupplier}
+                    onCreateCatalog={createCatalogItem}
                     onSave={saveProduct}
                     onCancel={() => setProductForm(emptyProductForm)}
                     onEdit={editProduct}
@@ -1127,24 +1151,14 @@ function App() {
                     businessName={businessName}
                     currencyCode={currencyCode}
                     defaultTax={defaultTax}
-                    categories={categories}
-                    brands={brands}
-                    suppliers={suppliers}
                     branches={branches}
                     settings={settings}
                     loading={loading}
-                    newCategory={newCategory}
-                    newBrand={newBrand}
-                    newSupplier={newSupplier}
                     hasReceipt={Boolean(lastReceipt)}
                     haciendaSetting={haciendaSetting}
                     onBusinessName={setBusinessName}
                     onCurrencyCode={setCurrencyCode}
                     onDefaultTax={setDefaultTax}
-                    onNewCategory={setNewCategory}
-                    onNewBrand={setNewBrand}
-                    onNewSupplier={setNewSupplier}
-                    onCreateCatalog={createCatalogItem}
                     onSave={saveSettings}
                     onHaciendaChange={setHaciendaSetting}
                     onSaveHacienda={saveHaciendaSetting}

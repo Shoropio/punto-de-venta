@@ -3,32 +3,22 @@ import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
 import type { HaciendaSettingRow, NamedCatalog, SettingRow } from '../../types'
-import { CatalogCard } from '../../components/shared/CatalogCard'
 import { Empty } from '../../components/shared/Empty'
+import { SelectBox } from '../../components/shared/SelectBox'
 import { translateSettingKey, translateSettingValue } from '../../lib/pos-utils'
 
 export function SettingsModule({
   businessName,
   currencyCode,
   defaultTax,
-  categories,
-  brands,
-  suppliers,
   branches,
   settings,
   loading,
-  newCategory,
-  newBrand,
-  newSupplier,
   hasReceipt,
   haciendaSetting,
   onBusinessName,
   onCurrencyCode,
   onDefaultTax,
-  onNewCategory,
-  onNewBrand,
-  onNewSupplier,
-  onCreateCatalog,
   onSave,
   onHaciendaChange,
   onSaveHacienda,
@@ -37,24 +27,14 @@ export function SettingsModule({
   businessName: string
   currencyCode: string
   defaultTax: string
-  categories: NamedCatalog[]
-  brands: NamedCatalog[]
-  suppliers: NamedCatalog[]
   branches: NamedCatalog[]
   settings: SettingRow[]
   loading: boolean
-  newCategory: string
-  newBrand: string
-  newSupplier: string
   hasReceipt: boolean
   haciendaSetting: HaciendaSettingRow
   onBusinessName: (value: string) => void
   onCurrencyCode: (value: string) => void
   onDefaultTax: (value: string) => void
-  onNewCategory: (value: string) => void
-  onNewBrand: (value: string) => void
-  onNewSupplier: (value: string) => void
-  onCreateCatalog: (kind: 'category' | 'brand' | 'supplier') => void
   onSave: () => void
   onHaciendaChange: (value: HaciendaSettingRow) => void
   onSaveHacienda: () => void
@@ -89,18 +69,18 @@ export function SettingsModule({
       <Card className="p-4">
         <h2 className="mb-3 flex items-center gap-2 text-lg font-bold"><Landmark size={20} /> Hacienda Costa Rica v4.4</h2>
         <div className="grid gap-3 md:grid-cols-4">
-          <select className="border border-slate-300 bg-white px-3 py-2 text-sm" value={haciendaSetting.environment} onChange={(event) => onHaciendaChange({ ...haciendaSetting, environment: event.target.value as HaciendaSettingRow['environment'] })}>
+          <SelectBox value={haciendaSetting.environment} onChange={(value) => onHaciendaChange({ ...haciendaSetting, environment: value as HaciendaSettingRow['environment'] })}>
             <option value="staging">Sandbox</option>
             <option value="production">Produccion</option>
-          </select>
+          </SelectBox>
           <Input placeholder="Razon social" value={haciendaSetting.legal_name} onChange={(event) => onHaciendaChange({ ...haciendaSetting, legal_name: event.target.value })} />
           <Input placeholder="Nombre comercial" value={haciendaSetting.commercial_name ?? ''} onChange={(event) => onHaciendaChange({ ...haciendaSetting, commercial_name: event.target.value })} />
-          <select className="border border-slate-300 bg-white px-3 py-2 text-sm" value={haciendaSetting.identification_type} onChange={(event) => onHaciendaChange({ ...haciendaSetting, identification_type: event.target.value })}>
+          <SelectBox value={haciendaSetting.identification_type} onChange={(value) => onHaciendaChange({ ...haciendaSetting, identification_type: value })}>
             <option value="01">Fisica</option>
             <option value="02">Juridica</option>
             <option value="03">DIMEX</option>
             <option value="04">NITE</option>
-          </select>
+          </SelectBox>
           <Input placeholder="Identificacion" value={haciendaSetting.identification_number} onChange={(event) => onHaciendaChange({ ...haciendaSetting, identification_number: event.target.value })} />
           <Input placeholder="Actividad economica" value={haciendaSetting.economic_activity_code} onChange={(event) => onHaciendaChange({ ...haciendaSetting, economic_activity_code: event.target.value })} />
           <Input placeholder="Provincia" value={haciendaSetting.province} onChange={(event) => onHaciendaChange({ ...haciendaSetting, province: event.target.value })} />
@@ -126,12 +106,6 @@ export function SettingsModule({
           </Button>
         </div>
       </Card>
-
-      <div className="grid gap-4 xl:grid-cols-3">
-        <CatalogCard title="Categorías" value={newCategory} items={categories} placeholder="Nueva categoría" onValue={onNewCategory} onCreate={() => onCreateCatalog('category')} />
-        <CatalogCard title="Marcas" value={newBrand} items={brands} placeholder="Nueva marca" onValue={onNewBrand} onCreate={() => onCreateCatalog('brand')} />
-        <CatalogCard title="Proveedores" value={newSupplier} items={suppliers} placeholder="Nuevo proveedor" onValue={onNewSupplier} onCreate={() => onCreateCatalog('supplier')} />
-      </div>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className="overflow-hidden">
