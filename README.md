@@ -143,10 +143,7 @@ Servicios:
 
 La arquitectura general esta en:
 
-```txt
-[Documentación técnica](./docs/ARCHITECTURE.md)
-```
-[Documentación técnica](./docs/ARCHITECTURE.md)
+[Arquitectura general](./docs/ARCHITECTURE.md)
 
 ---
 
