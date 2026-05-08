@@ -1,0 +1,70 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\HaciendaSetting;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+
+class HaciendaSettingController extends Controller
+{
+    public function index(Request $request)
+    {
+        return HaciendaSetting::query()
+            ->when($request->query('branch_id'), fn ($query, $branchId) => $query->where('branch_id', $branchId))
+            ->orderByDesc('is_active')
+            ->orderBy('environment')
+            ->get();
+    }
+
+    public function store(Request $request)
+    {
+        $data = $this->validatePayload($request);
+
+        return HaciendaSetting::updateOrCreate(
+            [
+                'branch_id' => $data['branch_id'] ?? null,
+                'environment' => $data['environment'],
+            ],
+            $data,
+        );
+    }
+
+    public function update(Request $request, HaciendaSetting $haciendaSetting)
+    {
+        $haciendaSetting->update($this->validatePayload($request));
+
+        return $haciendaSetting->fresh();
+    }
+
+    private function validatePayload(Request $request): array
+    {
+        return $request->validate([
+            'branch_id' => ['nullable', 'exists:branches,id'],
+            'environment' => ['required', Rule::in(['staging', 'production'])],
+            'schema_version' => ['nullable', Rule::in(['4.4'])],
+            'legal_name' => ['required', 'string', 'max:100'],
+            'commercial_name' => ['nullable', 'string', 'max:80'],
+            'identification_type' => ['required', Rule::in(['01', '02', '03', '04'])],
+            'identification_number' => ['required', 'string', 'max:12'],
+            'economic_activity_code' => ['required', 'string', 'size:6'],
+            'province' => ['required', 'string', 'size:1'],
+            'canton' => ['required', 'string', 'size:2'],
+            'district' => ['required', 'string', 'size:2'],
+            'barrio' => ['nullable', 'string', 'size:2'],
+            'other_signs' => ['required', 'string', 'max:250'],
+            'country_code' => ['nullable', 'string', 'size:3'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'email' => ['required', 'email', 'max:160'],
+            'branch_code' => ['required', 'string', 'size:3'],
+            'terminal_code' => ['required', 'string', 'size:5'],
+            'certificate_path' => ['nullable', 'string', 'max:255'],
+            'certificate_pin' => ['nullable', 'string', 'max:255'],
+            'api_username' => ['nullable', 'string', 'max:180'],
+            'api_password' => ['nullable', 'string', 'max:255'],
+            'callback_url' => ['nullable', 'url', 'max:255'],
+            'is_active' => ['boolean'],
+        ]);
+    }
+}

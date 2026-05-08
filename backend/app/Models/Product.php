@@ -10,7 +10,9 @@ class Product extends Model
 {
     protected $fillable = [
         'category_id', 'brand_id', 'supplier_id', 'sku', 'barcode', 'name', 'description',
-        'cost_price', 'sale_price', 'tax_rate', 'stock', 'min_stock', 'unit', 'track_stock', 'is_active',
+        'cabys_code', 'cost_price', 'sale_price', 'tax_rate', 'hacienda_tax_code',
+        'hacienda_tax_rate_code', 'stock', 'min_stock', 'unit', 'hacienda_unit_code',
+        'track_stock', 'is_active',
     ];
 
     protected function casts(): array

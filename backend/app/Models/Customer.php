@@ -6,7 +6,23 @@ use Illuminate\Database\Eloquent\Model;
 
 class Customer extends Model
 {
-    protected $fillable = ['name', 'email', 'phone', 'address', 'credit_limit', 'balance', 'loyalty_points', 'is_active'];
+    protected $fillable = [
+        'name',
+        'identification_type',
+        'identification_number',
+        'email',
+        'phone',
+        'address',
+        'province',
+        'canton',
+        'district',
+        'barrio',
+        'other_signs',
+        'credit_limit',
+        'balance',
+        'loyalty_points',
+        'is_active',
+    ];
 
     protected function casts(): array
     {

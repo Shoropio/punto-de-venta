@@ -6,11 +6,14 @@ use App\Models\Branch;
 use App\Models\CashRegister;
 use App\Models\CashSession;
 use App\Models\Customer;
+use App\Models\HaciendaSetting;
 use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -20,6 +23,7 @@ class OperationalModulesTest extends TestCase
 
     private User $user;
     private CashSession $session;
+    private HaciendaSetting $haciendaSetting;
 
     protected function setUp(): void
     {
@@ -36,6 +40,25 @@ class OperationalModulesTest extends TestCase
             'opening_amount' => 100,
             'expected_amount' => 100,
             'opened_at' => now(),
+        ]);
+
+        $this->haciendaSetting = HaciendaSetting::create([
+            'branch_id' => $branch->id,
+            'environment' => 'staging',
+            'legal_name' => 'POS Costa Rica SRL',
+            'identification_type' => '02',
+            'identification_number' => '3101123456',
+            'economic_activity_code' => '521101',
+            'province' => '1',
+            'canton' => '01',
+            'district' => '01',
+            'other_signs' => 'San Jose',
+            'email' => 'facturas@example.com',
+            'branch_code' => '001',
+            'terminal_code' => '00001',
+            'api_username' => 'cpf-02-3101123456@comprobanteselectronicos.go.cr',
+            'api_password' => 'atv-password',
+            'is_active' => true,
         ]);
     }
 
@@ -137,16 +160,109 @@ class OperationalModulesTest extends TestCase
 
     public function test_invoice_can_be_created_for_sale(): void
     {
+        Storage::fake('local');
+
         $sale = $this->sale();
 
-        $this->postJson('/api/invoices', [
+        $response = $this->postJson('/api/invoices', [
             'sale_id' => $sale->id,
             'tax_id' => 'XAXX010101000',
             'legal_name' => 'Publico General',
             'email' => 'facturas@example.com',
         ])->assertCreated()
             ->assertJsonPath('tax_id', 'XAXX010101000')
-            ->assertJsonPath('status', 'issued');
+            ->assertJsonPath('document_type', '01')
+            ->assertJsonPath('schema_version', '4.4')
+            ->assertJsonPath('status', 'xml_generated')
+            ->assertJsonPath('hacienda_status', 'xml_generated');
+
+        $this->assertDatabaseHas('invoices', [
+            'sale_id' => $sale->id,
+            'numero_consecutivo' => '00100001010000000001',
+        ]);
+
+        Storage::disk('local')->assertExists($response->json('xml_path'));
+        $xml = Storage::disk('local')->get($response->json('xml_path'));
+
+        $this->assertStringContainsString('<FacturaElectronica', $xml);
+        $this->assertStringContainsString('<Clave>' . $response->json('clave') . '</Clave>', $xml);
+        $this->assertStringContainsString('<NumeroConsecutivo>00100001010000000001</NumeroConsecutivo>', $xml);
+    }
+
+    public function test_invoice_xml_can_be_signed_with_configured_certificate(): void
+    {
+        Storage::fake('local');
+        $this->storeTestCertificate('1234');
+
+        $sale = $this->sale();
+
+        $invoice = $this->postJson('/api/invoices', [
+            'sale_id' => $sale->id,
+            'tax_id' => '3101123456',
+            'legal_name' => 'Cliente Firma SRL',
+            'email' => 'firma@example.com',
+        ])->assertCreated()->json();
+
+        $response = $this->postJson("/api/invoices/{$invoice['id']}/sign")
+            ->assertOk()
+            ->assertJsonPath('status', 'signed')
+            ->assertJsonPath('hacienda_status', 'signed');
+
+        Storage::disk('local')->assertExists($response->json('signed_xml_path'));
+        $signedXml = Storage::disk('local')->get($response->json('signed_xml_path'));
+
+        $this->assertStringContainsString('<ds:Signature', $signedXml);
+        $this->assertStringContainsString('<ds:SignatureValue>', $signedXml);
+        $this->assertStringContainsString('<ds:X509Certificate>', $signedXml);
+    }
+
+    public function test_signed_invoice_can_be_submitted_and_status_checked(): void
+    {
+        Storage::fake('local');
+        Http::fake([
+            'idp.comprobanteselectronicos.go.cr/*' => Http::response(['access_token' => 'token-123'], 200),
+            'api.comprobanteselectronicos.go.cr/recepcion-sandbox/v1/recepcion' => Http::response('', 201, [
+                'Location' => 'https://api.comprobanteselectronicos.go.cr/recepcion-sandbox/v1/recepcion/clave-test',
+            ]),
+            'api.comprobanteselectronicos.go.cr/recepcion-sandbox/v1/recepcion/*' => Http::response([
+                'clave' => 'clave-test',
+                'fecha' => now()->format('Y-m-d\TH:i:sO'),
+                'ind-estado' => 'aceptado',
+                'respuesta-xml' => base64_encode('<MensajeHacienda />'),
+            ], 200),
+        ]);
+        $this->storeTestCertificate('1234');
+
+        $sale = $this->sale();
+        $invoice = $this->postJson('/api/invoices', [
+            'sale_id' => $sale->id,
+            'tax_id' => '3101123456',
+            'legal_name' => 'Cliente Envio SRL',
+            'email' => 'envio@example.com',
+        ])->assertCreated()->json();
+
+        $signed = $this->postJson("/api/invoices/{$invoice['id']}/sign")
+            ->assertOk()
+            ->json();
+
+        $this->postJson("/api/invoices/{$signed['id']}/submit")
+            ->assertOk()
+            ->assertJsonPath('status', 'submitted')
+            ->assertJsonPath('hacienda_status', 'submitted');
+
+        $response = $this->postJson("/api/invoices/{$signed['id']}/status")
+            ->assertOk()
+            ->assertJsonPath('status', 'accepted')
+            ->assertJsonPath('hacienda_status', 'accepted');
+
+        Storage::disk('local')->assertExists($response->json('hacienda_response_path'));
+
+        Http::assertSent(fn ($request) => $request->url() === config('services.hacienda.token_url')
+            && $request['grant_type'] === 'password'
+            && $request['client_id'] === 'api-stag');
+        Http::assertSent(fn ($request) => str_ends_with($request->url(), '/recepcion')
+            && $request['clave'] === $signed['clave']
+            && isset($request['comprobanteXml']));
     }
 
     public function test_barcode_can_be_generated_and_assigned_to_product(): void
@@ -190,5 +306,39 @@ class OperationalModulesTest extends TestCase
         ])->assertCreated()->json('data.id');
 
         return Sale::findOrFail($saleId);
+    }
+
+    private function storeTestCertificate(string $pin): void
+    {
+        $opensslConfig = $this->writeOpenSslConfig();
+        $config = ['config' => $opensslConfig, 'digest_alg' => 'sha256'];
+        $privateKey = openssl_pkey_new([
+            'private_key_bits' => 2048,
+            'private_key_type' => OPENSSL_KEYTYPE_RSA,
+            'config' => $opensslConfig,
+        ]);
+        $csr = openssl_csr_new(['commonName' => 'POS Test Certificate'], $privateKey, $config);
+        $certificate = openssl_csr_sign($csr, null, $privateKey, 1, $config);
+        openssl_pkcs12_export($certificate, $p12, $privateKey, $pin);
+
+        Storage::disk('local')->put('hacienda/certs/test.p12', $p12);
+        $this->haciendaSetting->update([
+            'certificate_path' => 'hacienda/certs/test.p12',
+            'certificate_pin' => $pin,
+        ]);
+    }
+
+    private function writeOpenSslConfig(): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'openssl-test-');
+        file_put_contents($path, implode(PHP_EOL, [
+            '[ req ]',
+            'distinguished_name = req_distinguished_name',
+            'prompt = no',
+            '[ req_distinguished_name ]',
+            'CN = POS Test Certificate',
+        ]));
+
+        return $path;
     }
 }

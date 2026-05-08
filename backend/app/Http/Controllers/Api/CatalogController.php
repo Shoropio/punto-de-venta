@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Supplier;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 
 class CatalogController extends Controller
@@ -16,7 +17,13 @@ class CatalogController extends Controller
     public function categories(Request $request) { return Category::query()->latest()->paginate($request->integer('per_page', 50)); }
     public function brands(Request $request) { return Brand::query()->latest()->paginate($request->integer('per_page', 50)); }
     public function suppliers(Request $request) { return Supplier::query()->latest()->paginate($request->integer('per_page', 50)); }
-    public function customers(Request $request) { return Customer::query()->latest()->paginate($request->integer('per_page', 50)); }
+    public function customers(Request $request)
+    {
+        return Customer::query()
+            ->when(! $request->boolean('include_inactive'), fn ($query) => $query->where('is_active', true))
+            ->latest()
+            ->paginate($request->integer('per_page', 50));
+    }
     public function branches(Request $request) { return Branch::query()->latest()->paginate($request->integer('per_page', 50)); }
 
     public function storeCategory(Request $request)
@@ -51,7 +58,41 @@ class CatalogController extends Controller
             'phone' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
+            'identification_type' => ['nullable', Rule::in(['01', '02', '03', '04'])],
+            'identification_number' => ['nullable', 'string', 'max:12'],
+            'province' => ['nullable', 'string', 'size:1'],
+            'canton' => ['nullable', 'string', 'size:2'],
+            'district' => ['nullable', 'string', 'size:2'],
+            'barrio' => ['nullable', 'string', 'size:2'],
+            'other_signs' => ['nullable', 'string'],
         ]));
+    }
+
+    public function updateCustomer(Request $request, Customer $customer)
+    {
+        $customer->update($request->validate([
+            'name' => ['required', 'string', 'max:160'],
+            'email' => ['nullable', 'email', Rule::unique('customers', 'email')->ignore($customer->id)],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'address' => ['nullable', 'string'],
+            'credit_limit' => ['nullable', 'numeric', 'min:0'],
+            'identification_type' => ['nullable', Rule::in(['01', '02', '03', '04'])],
+            'identification_number' => ['nullable', 'string', 'max:12'],
+            'province' => ['nullable', 'string', 'size:1'],
+            'canton' => ['nullable', 'string', 'size:2'],
+            'district' => ['nullable', 'string', 'size:2'],
+            'barrio' => ['nullable', 'string', 'size:2'],
+            'other_signs' => ['nullable', 'string'],
+        ]));
+
+        return $customer;
+    }
+
+    public function destroyCustomer(Customer $customer)
+    {
+        $customer->update(['is_active' => false]);
+
+        return response()->noContent();
     }
 
     public function storeBranch(Request $request)

@@ -19,10 +19,10 @@ import { SettingsModule } from './modules/settings'
 import { api } from './lib/api'
 import { configureCurrency } from './lib/utils'
 import { getToastTone, roundMoney } from './lib/pos-utils'
-import { emptyProductForm, mapProduct, type ApiProduct, type ProductForm } from './types/product'
+import { emptyProductForm, mapProduct, type ApiProduct, type ProductForm, type ProductIdentifiers } from './types/product'
 import type { Product } from './store/usePosStore'
 import { usePosStore } from './store/usePosStore'
-import type { AppTheme, AuthResponse, CashMovement, CashSession, CreditPaymentRow, Customer, InvoiceRow, ModuleKey, NamedCatalog, NavItem, Paginated, PaymentMethodRow, PromotionRow, Refund, SaleListItem, SaleResponse, SalesSummary, SettingRow, ToastMessage, TopProduct } from './types'
+import { emptyCustomerForm, emptyHaciendaSetting, type AppTheme, type AuthResponse, type CashMovement, type CashSession, type CreditPaymentRow, type Customer, type CustomerForm, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PromotionRow, type Refund, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type ToastMessage, type TopProduct } from './types'
 
 const HELD_SALE_KEY = 'pos_held_sale'
 
@@ -58,14 +58,14 @@ function App() {
   const [suppliers, setSuppliers] = useState<NamedCatalog[]>([])
   const [branches, setBranches] = useState<NamedCatalog[]>([])
   const [settings, setSettings] = useState<SettingRow[]>([])
+  const [haciendaSetting, setHaciendaSetting] = useState<HaciendaSettingRow>(emptyHaciendaSetting)
   const [cashMovements, setCashMovements] = useState<CashMovement[]>([])
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodRow[]>([])
   const [promotions, setPromotions] = useState<PromotionRow[]>([])
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
   const [creditPayments, setCreditPayments] = useState<CreditPaymentRow[]>([])
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm)
-  const [newCustomerName, setNewCustomerName] = useState('')
-  const [newCustomerPhone, setNewCustomerPhone] = useState('')
+  const [customerForm, setCustomerForm] = useState<CustomerForm>(emptyCustomerForm)
   const [newCategory, setNewCategory] = useState('')
   const [newBrand, setNewBrand] = useState('')
   const [newSupplier, setNewSupplier] = useState('')
@@ -147,14 +147,17 @@ function App() {
   }, [])
 
   const loadSettings = useCallback(async () => {
-    const [settingsResponse, categoriesResponse, brandsResponse, suppliersResponse, branchesResponse] = await Promise.all([
+    const [settingsResponse, haciendaResponse, categoriesResponse, brandsResponse, suppliersResponse, branchesResponse] = await Promise.all([
       api<SettingRow[]>('/settings'),
+      api<HaciendaSettingRow[]>('/hacienda-settings'),
       api<Paginated<NamedCatalog>>('/categories?per_page=100'),
       api<Paginated<NamedCatalog>>('/brands?per_page=100'),
       api<Paginated<NamedCatalog>>('/suppliers?per_page=100'),
       api<Paginated<NamedCatalog>>('/branches?per_page=100'),
     ])
     setSettings(settingsResponse)
+    const activeHacienda = haciendaResponse[0]
+    if (activeHacienda) setHaciendaSetting({ ...emptyHaciendaSetting, ...activeHacienda, certificate_pin: '', api_password: '' })
     setCategories(categoriesResponse.data)
     setBrands(brandsResponse.data)
     setSuppliers(suppliersResponse.data)
@@ -355,8 +358,8 @@ function App() {
   }
 
   const saveProduct = async () => {
-    if (!productForm.sku.trim() || !productForm.name.trim()) {
-      setMessage('SKU y nombre del producto son obligatorios.')
+    if (!productForm.name.trim()) {
+      setMessage('El nombre del producto es obligatorio.')
       return
     }
 
@@ -397,9 +400,33 @@ function App() {
       tax_rate: String(product.taxRate),
       stock: String(product.stock),
       min_stock: String(product.minStock),
-      unit: 'piece',
+      unit: product.unit ?? 'piece',
     })
     setMessage(`Editando ${product.name}.`)
+  }
+
+  const deleteProduct = async (product: Product) => {
+    setLoading(true)
+    try {
+      await api(`/products/${product.id}`, { method: 'DELETE' })
+      if (productForm.id === product.id) setProductForm(emptyProductForm)
+      await loadProducts()
+      setMessage(`${product.name} eliminado del inventario.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible eliminar el producto.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const regenerateProductIdentifiers = async () => {
+    try {
+      const identifiers = await api<ProductIdentifiers>('/products/identifiers')
+      setProductForm((current) => ({ ...current, ...identifiers }))
+      setMessage('SKU y codigo regenerados.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible generar identificadores.')
+    }
   }
 
   const adjustStock = async (product: Product, type: 'in' | 'out') => {
@@ -418,24 +445,63 @@ function App() {
     }
   }
 
-  const createCustomer = async () => {
-    if (!newCustomerName.trim()) {
+  const saveCustomer = async () => {
+    if (!customerForm.name.trim()) {
       setMessage('Captura el nombre del cliente.')
       return
     }
 
     setLoading(true)
     try {
-      await api('/customers', {
-        method: 'POST',
-        body: JSON.stringify({ name: newCustomerName, phone: newCustomerPhone || null }),
+      const body = JSON.stringify({
+        ...customerForm,
+        email: customerForm.email || null,
+        phone: customerForm.phone || null,
+        address: customerForm.address || null,
+        credit_limit: customerForm.credit_limit || 0,
+        identification_number: customerForm.identification_number || null,
       })
-      setNewCustomerName('')
-      setNewCustomerPhone('')
+
+      if (customerForm.id) {
+        await api(`/customers/${customerForm.id}`, { method: 'PUT', body })
+        setMessage('Cliente actualizado correctamente.')
+      } else {
+        await api('/customers', { method: 'POST', body })
+        setMessage('Cliente creado correctamente.')
+      }
+
+      setCustomerForm(emptyCustomerForm)
       await loadCustomers()
-      setMessage('Cliente creado correctamente.')
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'No fue posible crear el cliente.')
+      setMessage(error instanceof Error ? error.message : 'No fue posible guardar el cliente.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const editCustomer = (customer: Customer) => {
+    setCustomerForm({
+      id: customer.id,
+      name: customer.name,
+      email: customer.email ?? '',
+      phone: customer.phone ?? '',
+      address: customer.address ?? '',
+      credit_limit: String(customer.credit_limit ?? '0'),
+      identification_type: customer.identification_type ?? '01',
+      identification_number: customer.identification_number ?? '',
+    })
+    setMessage(`Editando ${customer.name}.`)
+  }
+
+  const deleteCustomer = async (customer: Customer) => {
+    setLoading(true)
+    try {
+      await api(`/customers/${customer.id}`, { method: 'DELETE' })
+      if (customerForm.id === customer.id) setCustomerForm(emptyCustomerForm)
+      await loadCustomers()
+      setMessage(`${customer.name} eliminado.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible eliminar el cliente.')
     } finally {
       setLoading(false)
     }
@@ -605,6 +671,48 @@ function App() {
       setMessage('Factura registrada.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible registrar factura.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveHaciendaSetting = async () => {
+    setLoading(true)
+    try {
+      const payload = {
+        ...haciendaSetting,
+        branch_id: haciendaSetting.branch_id || 1,
+        country_code: haciendaSetting.country_code || '506',
+        schema_version: '4.4',
+      }
+      if (haciendaSetting.id && !payload.certificate_pin) delete payload.certificate_pin
+      if (haciendaSetting.id && !payload.api_password) delete payload.api_password
+      const endpoint = haciendaSetting.id ? `/hacienda-settings/${haciendaSetting.id}` : '/hacienda-settings'
+      const method = haciendaSetting.id ? 'PUT' : 'POST'
+      const saved = await api<HaciendaSettingRow>(endpoint, { method, body: JSON.stringify(payload) })
+      setHaciendaSetting({ ...emptyHaciendaSetting, ...saved, certificate_pin: '', api_password: '' })
+      setMessage('Configuracion Hacienda guardada.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible guardar Hacienda.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const runInvoiceAction = async (invoiceId: number, action: 'xml' | 'sign' | 'submit' | 'status') => {
+    const labels = {
+      xml: 'XML generado.',
+      sign: 'XML firmado.',
+      submit: 'Comprobante enviado a Hacienda.',
+      status: 'Estado Hacienda actualizado.',
+    }
+    setLoading(true)
+    try {
+      await api(`/invoices/${invoiceId}/${action}`, { method: 'POST' })
+      await loadOperations()
+      setMessage(labels[action])
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible procesar la factura.')
     } finally {
       setLoading(false)
     }
@@ -879,6 +987,8 @@ function App() {
                     onSave={saveProduct}
                     onCancel={() => setProductForm(emptyProductForm)}
                     onEdit={editProduct}
+                    onDelete={deleteProduct}
+                    onRegenerate={regenerateProductIdentifiers}
                     onAdjust={adjustStock}
                   />
                 )}
@@ -887,11 +997,12 @@ function App() {
                   <CustomersModule
                     customers={customers}
                     loading={loading}
-                    name={newCustomerName}
-                    phone={newCustomerPhone}
-                    onName={setNewCustomerName}
-                    onPhone={setNewCustomerPhone}
-                    onCreate={createCustomer}
+                    form={customerForm}
+                    onFormChange={setCustomerForm}
+                    onSave={saveCustomer}
+                    onCancel={() => setCustomerForm(emptyCustomerForm)}
+                    onEdit={editCustomer}
+                    onDelete={deleteCustomer}
                   />
                 )}
 
@@ -976,6 +1087,10 @@ function App() {
                     onLegalName={setInvoiceLegalName}
                     onEmail={setInvoiceEmail}
                     onCreate={createInvoice}
+                    onGenerateXml={(invoiceId) => runInvoiceAction(invoiceId, 'xml')}
+                    onSign={(invoiceId) => runInvoiceAction(invoiceId, 'sign')}
+                    onSubmit={(invoiceId) => runInvoiceAction(invoiceId, 'submit')}
+                    onCheckStatus={(invoiceId) => runInvoiceAction(invoiceId, 'status')}
                   />
                 )}
 
@@ -1022,6 +1137,7 @@ function App() {
                     newBrand={newBrand}
                     newSupplier={newSupplier}
                     hasReceipt={Boolean(lastReceipt)}
+                    haciendaSetting={haciendaSetting}
                     onBusinessName={setBusinessName}
                     onCurrencyCode={setCurrencyCode}
                     onDefaultTax={setDefaultTax}
@@ -1030,6 +1146,8 @@ function App() {
                     onNewSupplier={setNewSupplier}
                     onCreateCatalog={createCatalogItem}
                     onSave={saveSettings}
+                    onHaciendaChange={setHaciendaSetting}
+                    onSaveHacienda={saveHaciendaSetting}
                     onPrint={printReceipt}
                   />
                 )}

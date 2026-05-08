@@ -34,4 +34,71 @@ class InventoryTest extends TestCase
 
         $this->assertSame('8.000', $product->fresh()->stock);
     }
+
+    public function test_product_can_be_created_with_auto_identifiers_and_deleted(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $response = $this->postJson('/api/products', [
+            'name' => 'Producto Automatico',
+            'cost_price' => 5,
+            'sale_price' => 15,
+            'tax_rate' => 13,
+            'stock' => 10,
+            'unit' => 'piece',
+        ])->assertCreated()
+            ->assertJsonPath('data.name', 'Producto Automatico')
+            ->assertJsonPath('data.is_active', true);
+
+        $this->assertNotEmpty($response->json('data.sku'));
+        $this->assertNotEmpty($response->json('data.barcode'));
+
+        $this->deleteJson('/api/products/' . $response->json('data.id'))->assertNoContent();
+
+        $this->getJson('/api/products?per_page=100')
+            ->assertOk()
+            ->assertJsonMissing(['name' => 'Producto Automatico']);
+    }
+
+    public function test_product_identifiers_can_be_generated(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $this->getJson('/api/products/identifiers')
+            ->assertOk()
+            ->assertJsonStructure(['sku', 'barcode']);
+    }
+
+    public function test_customer_can_be_created_updated_and_deleted(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+
+        $customerId = $this->postJson('/api/customers', [
+            'name' => 'Cliente CRUD',
+            'phone' => '8888-8888',
+            'email' => 'cliente@example.com',
+            'identification_type' => '01',
+            'identification_number' => '101110111',
+            'credit_limit' => 100,
+        ])->assertCreated()
+            ->assertJsonPath('name', 'Cliente CRUD')
+            ->json('id');
+
+        $this->putJson("/api/customers/{$customerId}", [
+            'name' => 'Cliente Actualizado',
+            'phone' => '7777-7777',
+            'email' => 'cliente@example.com',
+            'identification_type' => '01',
+            'identification_number' => '101110111',
+            'credit_limit' => 200,
+        ])->assertOk()
+            ->assertJsonPath('name', 'Cliente Actualizado')
+            ->assertJsonPath('phone', '7777-7777');
+
+        $this->deleteJson("/api/customers/{$customerId}")->assertNoContent();
+
+        $this->getJson('/api/customers?per_page=100')
+            ->assertOk()
+            ->assertJsonMissing(['name' => 'Cliente Actualizado']);
+    }
 }

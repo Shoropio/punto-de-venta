@@ -7,12 +7,17 @@ use App\Http\Requests\ProductRequest;
 use App\Http\Resources\ProductResource;
 use App\Models\Product;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
     public function index(Request $request)
     {
         $query = Product::with(['category', 'brand', 'supplier'])->latest();
+
+        if (! $request->boolean('include_inactive')) {
+            $query->where('is_active', true);
+        }
 
         if ($search = $request->query('search')) {
             $query->where(fn ($q) => $q
@@ -30,7 +35,13 @@ class ProductController extends Controller
 
     public function store(ProductRequest $request)
     {
-        return new ProductResource(Product::create($request->validated())->load(['category', 'brand', 'supplier']));
+        $data = $request->validated();
+        $data['sku'] = ($data['sku'] ?? null) ?: $this->generateSku();
+        $data['barcode'] = ($data['barcode'] ?? null) ?: $this->generateBarcode();
+
+        $product = Product::create($data)->fresh(['category', 'brand', 'supplier']);
+
+        return (new ProductResource($product))->response()->setStatusCode(201);
     }
 
     public function show(Product $product)
@@ -40,7 +51,11 @@ class ProductController extends Controller
 
     public function update(ProductRequest $request, Product $product)
     {
-        $product->update($request->validated());
+        $data = $request->validated();
+        $data['sku'] = ($data['sku'] ?? null) ?: $this->generateSku();
+        $data['barcode'] = array_key_exists('barcode', $data) && ! $data['barcode'] ? $this->generateBarcode() : ($data['barcode'] ?? $product->barcode);
+
+        $product->update($data);
 
         return new ProductResource($product->load(['category', 'brand', 'supplier']));
     }
@@ -50,5 +65,31 @@ class ProductController extends Controller
         $product->update(['is_active' => false]);
 
         return response()->noContent();
+    }
+
+    public function identifiers()
+    {
+        return [
+            'sku' => $this->generateSku(),
+            'barcode' => $this->generateBarcode(),
+        ];
+    }
+
+    private function generateSku(): string
+    {
+        do {
+            $sku = 'SKU-' . now()->format('ymd') . '-' . Str::upper(Str::random(5));
+        } while (Product::where('sku', $sku)->exists());
+
+        return $sku;
+    }
+
+    private function generateBarcode(): string
+    {
+        do {
+            $barcode = '750' . str_pad((string) random_int(0, 9999999999), 10, '0', STR_PAD_LEFT);
+        } while (Product::where('barcode', $barcode)->exists());
+
+        return $barcode;
     }
 }

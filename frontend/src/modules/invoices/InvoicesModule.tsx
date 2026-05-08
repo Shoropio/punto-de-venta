@@ -1,4 +1,4 @@
-import { ReceiptText } from 'lucide-react'
+import { FileCode2, RefreshCw, ReceiptText, Send, Signature } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
@@ -8,7 +8,7 @@ import { currency } from '../../lib/utils'
 import { translateStatus } from '../../lib/pos-utils'
 import type { InvoiceRow, SaleListItem } from '../../types'
 
-export function InvoicesModule({ sales, invoices, saleId, taxId, legalName, email, loading, onSale, onTaxId, onLegalName, onEmail, onCreate }: {
+export function InvoicesModule({ sales, invoices, saleId, taxId, legalName, email, loading, onSale, onTaxId, onLegalName, onEmail, onCreate, onGenerateXml, onSign, onSubmit, onCheckStatus }: {
   sales: SaleListItem[]
   invoices: InvoiceRow[]
   saleId: string
@@ -21,6 +21,10 @@ export function InvoicesModule({ sales, invoices, saleId, taxId, legalName, emai
   onLegalName: (value: string) => void
   onEmail: (value: string) => void
   onCreate: () => void
+  onGenerateXml: (invoiceId: number) => void
+  onSign: (invoiceId: number) => void
+  onSubmit: (invoiceId: number) => void
+  onCheckStatus: (invoiceId: number) => void
 }) {
   return (
     <div className="space-y-4">
@@ -36,11 +40,18 @@ export function InvoicesModule({ sales, invoices, saleId, taxId, legalName, emai
       </Card>
       <DataCard title="Facturas" empty="No hay facturas registradas.">
         {invoices.map((invoice) => (
-          <div key={invoice.id} className="grid grid-cols-[140px_1fr_160px_100px] gap-3 border-t border-slate-100 px-4 py-3 text-sm">
-            <span className="font-semibold">{invoice.folio}</span>
+          <div key={invoice.id} className="grid grid-cols-[170px_1fr_150px_90px_115px_184px] items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+            <span className="font-semibold">{invoice.numero_consecutivo ?? invoice.folio}</span>
             <span>{invoice.legal_name}</span>
             <span>{invoice.tax_id}</span>
-            <span className="text-[#0088cc]">{translateStatus(invoice.status)}</span>
+            <span>{invoice.schema_version ? `v${invoice.schema_version}` : '-'}</span>
+            <span className="text-[#0088cc]">{translateStatus(invoice.hacienda_status ?? invoice.status)}</span>
+            <div className="grid grid-cols-4 gap-1">
+              <button className="grid h-8 place-items-center border border-slate-200 hover:bg-slate-50" title="Generar XML" disabled={loading} onClick={() => onGenerateXml(invoice.id)}><FileCode2 size={15} /></button>
+              <button className="grid h-8 place-items-center border border-slate-200 hover:bg-slate-50" title="Firmar XML" disabled={loading} onClick={() => onSign(invoice.id)}><Signature size={15} /></button>
+              <button className="grid h-8 place-items-center border border-slate-200 hover:bg-slate-50" title="Enviar Hacienda" disabled={loading} onClick={() => onSubmit(invoice.id)}><Send size={15} /></button>
+              <button className="grid h-8 place-items-center border border-slate-200 hover:bg-slate-50" title="Consultar estado" disabled={loading} onClick={() => onCheckStatus(invoice.id)}><RefreshCw size={15} /></button>
+            </div>
           </div>
         ))}
       </DataCard>

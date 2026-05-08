@@ -10,7 +10,13 @@ export type ApiProduct = {
   tax_rate: string
   stock: string
   min_stock: string
+  unit?: string
   category?: { name?: string } | null
+}
+
+export type ProductIdentifiers = {
+  sku: string
+  barcode: string
 }
 
 export type ProductForm = {
@@ -50,5 +56,6 @@ export function mapProduct(product: ApiProduct): Product {
     taxRate: Number(product.tax_rate),
     stock: Number(product.stock),
     minStock: Number(product.min_stock),
+    unit: product.unit ?? 'piece',
   }
 }

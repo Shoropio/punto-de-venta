@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CashMovementController;
 use App\Http\Controllers\Api\CashSessionController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CreditPaymentController;
+use App\Http\Controllers\Api\HaciendaSettingController;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\PaymentMethodController;
@@ -24,6 +25,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => $request->user()->load(['role.permissions', 'branch']));
     Route::post('/auth/logout', [AuthController::class, 'logout']);
 
+    Route::get('/products/identifiers', [ProductController::class, 'identifiers']);
     Route::apiResource('products', ProductController::class);
 
     Route::get('/categories', [CatalogController::class, 'categories']);
@@ -34,11 +36,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/suppliers', [CatalogController::class, 'storeSupplier']);
     Route::get('/customers', [CatalogController::class, 'customers']);
     Route::post('/customers', [CatalogController::class, 'storeCustomer']);
+    Route::put('/customers/{customer}', [CatalogController::class, 'updateCustomer']);
+    Route::delete('/customers/{customer}', [CatalogController::class, 'destroyCustomer']);
     Route::get('/branches', [CatalogController::class, 'branches']);
     Route::post('/branches', [CatalogController::class, 'storeBranch']);
 
     Route::get('/settings', [SettingController::class, 'index']);
     Route::post('/settings', [SettingController::class, 'upsert']);
+    Route::get('/hacienda-settings', [HaciendaSettingController::class, 'index']);
+    Route::post('/hacienda-settings', [HaciendaSettingController::class, 'store']);
+    Route::put('/hacienda-settings/{haciendaSetting}', [HaciendaSettingController::class, 'update']);
 
     Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
     Route::post('/payment-methods', [PaymentMethodController::class, 'store']);
@@ -63,6 +70,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/invoices', [InvoiceController::class, 'index']);
     Route::post('/invoices', [InvoiceController::class, 'store']);
+    Route::post('/invoices/{invoice}/xml', [InvoiceController::class, 'generateXml']);
+    Route::post('/invoices/{invoice}/sign', [InvoiceController::class, 'sign']);
+    Route::post('/invoices/{invoice}/submit', [InvoiceController::class, 'submit']);
+    Route::post('/invoices/{invoice}/status', [InvoiceController::class, 'checkStatus']);
 
     Route::get('/barcodes/generate', [BarcodeController::class, 'generate']);
     Route::post('/products/{product}/barcode', [BarcodeController::class, 'assign']);

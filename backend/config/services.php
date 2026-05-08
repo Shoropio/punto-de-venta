@@ -22,6 +22,15 @@ return [
         'key' => env('RESEND_API_KEY'),
     ],
 
+    'hacienda' => [
+        'environment' => env('HACIENDA_ENVIRONMENT', 'staging'),
+        'token_url' => env('HACIENDA_TOKEN_URL', 'https://idp.comprobanteselectronicos.go.cr/auth/realms/rut/protocol/openid-connect/token'),
+        'production_url' => env('HACIENDA_PRODUCTION_URL', 'https://api.comprobanteselectronicos.go.cr/recepcion/v1'),
+        'staging_url' => env('HACIENDA_STAGING_URL', 'https://api.comprobanteselectronicos.go.cr/recepcion-sandbox/v1'),
+        'production_client_id' => env('HACIENDA_PRODUCTION_CLIENT_ID', 'api-prod'),
+        'staging_client_id' => env('HACIENDA_STAGING_CLIENT_ID', 'api-stag'),
+    ],
+
     'ses' => [
         'key' => env('AWS_ACCESS_KEY_ID'),
         'secret' => env('AWS_SECRET_ACCESS_KEY'),

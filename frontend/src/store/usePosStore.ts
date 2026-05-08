@@ -11,6 +11,7 @@ export type Product = {
   taxRate: number
   stock: number
   minStock: number
+  unit?: string
 }
 
 export type CartItem = Product & {
