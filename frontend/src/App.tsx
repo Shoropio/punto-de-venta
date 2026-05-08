@@ -216,11 +216,9 @@ function App() {
     lastToastMessageRef.current = message
     const id = Date.now()
     setToasts((current) => [...current.slice(-3), { id, text: message, tone: getToastTone(message) }])
-    const timer = window.setTimeout(() => {
+    window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id))
     }, 4200)
-
-    return () => window.clearTimeout(timer)
   }, [message])
 
   const dismissToast = (id: number) => {

@@ -31,7 +31,16 @@ class CashSessionController extends Controller
 
     public function current(Request $request)
     {
-        return CashSession::where('user_id', $request->user()->id)->where('status', 'open')->latest()->first();
+        $session = CashSession::where('user_id', $request->user()->id)
+            ->where('status', 'open')
+            ->latest()
+            ->first();
+
+        if (! $session) {
+            return response('null', 200)->header('Content-Type', 'application/json');
+        }
+
+        return response()->json($session);
     }
 
     public function close(Request $request, CashSession $cashSession)

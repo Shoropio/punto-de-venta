@@ -11,14 +11,23 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init.headers,
     },
   })
+  const text = await response.text()
+  const body = text
+    ? (() => {
+        try {
+          return JSON.parse(text)
+        } catch {
+          return { message: text }
+        }
+      })()
+    : null
 
   if (!response.ok) {
-    const body = await response.json().catch(() => ({ message: 'Error inesperado' }))
-    const details = body.errors && typeof body.errors === 'object'
+    const details = body?.errors && typeof body.errors === 'object'
       ? Object.values(body.errors).flat().join(' ')
       : ''
-    throw new Error(details || body.message || 'Error de API')
+    throw new Error(details || body?.message || 'Error de API')
   }
 
-  return response.json()
+  return body as T
 }
