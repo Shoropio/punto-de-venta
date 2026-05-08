@@ -39,6 +39,10 @@ Sistema de punto de venta con frontend React + TypeScript y backend Laravel + Sa
 Desde PowerShell:
 
 ```powershell
+git clone https://github.com/Shoropio/punto-de-venta.git
+```
+
+```powershell
 cd C:\Users\Shoropio\Desktop\punto-de-venta
 ```
 
