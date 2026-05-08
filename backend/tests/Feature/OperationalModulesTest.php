@@ -83,6 +83,30 @@ class OperationalModulesTest extends TestCase
         $this->assertSame('125.00', $this->session->fresh()->expected_amount);
     }
 
+    public function test_cash_session_opening_requires_shift_supervisor_and_returns_summary(): void
+    {
+        $register = CashRegister::create(['branch_id' => $this->user->branch_id, 'name' => 'Caja 2', 'code' => 'C2']);
+
+        $this->session->update(['status' => 'closed', 'closed_at' => now()]);
+
+        $this->getJson('/api/cash-registers')
+            ->assertOk()
+            ->assertJsonFragment(['name' => 'Caja 2']);
+
+        $this->postJson('/api/cash-sessions/open', [
+            'cash_register_id' => $register->id,
+            'opening_amount' => 50000,
+            'shift' => 'Mañana',
+            'supervisor_name' => 'Carlos Ramírez',
+            'notes' => 'Supervisor confirma monto presencialmente.',
+        ])->assertCreated()
+            ->assertJsonPath('opening_amount', '50000.00')
+            ->assertJsonPath('shift', 'Mañana')
+            ->assertJsonPath('supervisor_name', 'Carlos Ramírez')
+            ->assertJsonPath('cash_register.name', 'Caja 2')
+            ->assertJsonPath('user.id', $this->user->id);
+    }
+
     public function test_payment_methods_can_be_created_and_updated(): void
     {
         $methodId = $this->postJson('/api/payment-methods', [
@@ -100,6 +124,41 @@ class OperationalModulesTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('name', 'Vale autorizado')
             ->assertJsonPath('is_active', false);
+    }
+
+    public function test_branch_can_be_created_updated_listed_and_deleted(): void
+    {
+        $branchId = $this->postJson('/api/branches', [
+            'name' => 'Sucursal Norte',
+            'code' => 'NORTE',
+            'phone' => '2222-2222',
+            'email' => 'norte@example.com',
+            'address' => 'Zona norte',
+        ])->assertCreated()
+            ->assertJsonPath('name', 'Sucursal Norte')
+            ->assertJsonPath('code', 'NORTE')
+            ->json('id');
+
+        $this->getJson('/api/branches?per_page=100')
+            ->assertOk()
+            ->assertJsonFragment(['name' => 'Sucursal Norte']);
+
+        $this->putJson("/api/branches/{$branchId}", [
+            'name' => 'Sucursal Norte Actualizada',
+            'code' => 'NORTE',
+            'phone' => '2222-3333',
+            'email' => 'norte@example.com',
+            'address' => 'Zona norte actualizada',
+            'is_active' => true,
+        ])->assertOk()
+            ->assertJsonPath('name', 'Sucursal Norte Actualizada')
+            ->assertJsonPath('phone', '2222-3333');
+
+        $this->deleteJson("/api/branches/{$branchId}")->assertNoContent();
+
+        $this->getJson('/api/branches?per_page=100')
+            ->assertOk()
+            ->assertJsonMissing(['name' => 'Sucursal Norte Actualizada']);
     }
 
     public function test_promotion_code_applies_discount_to_sale(): void

@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class CashSession extends Model
 {
     protected $fillable = [
-        'cash_register_id', 'user_id', 'opening_amount', 'closing_amount', 'expected_amount',
-        'difference_amount', 'opened_at', 'closed_at', 'status', 'notes',
+        'cash_register_id', 'user_id', 'shift', 'supervisor_name', 'supervisor_confirmed_at',
+        'opening_amount', 'closing_amount', 'expected_amount', 'difference_amount',
+        'opened_at', 'closed_at', 'status', 'notes',
     ];
 
     protected function casts(): array
@@ -20,6 +21,17 @@ class CashSession extends Model
             'difference_amount' => 'decimal:2',
             'opened_at' => 'datetime',
             'closed_at' => 'datetime',
+            'supervisor_confirmed_at' => 'datetime',
         ];
+    }
+
+    public function cashRegister()
+    {
+        return $this->belongsTo(CashRegister::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }

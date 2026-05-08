@@ -4,12 +4,21 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CashSessionRequest;
+use App\Models\CashRegister;
 use App\Models\CashSession;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class CashSessionController extends Controller
 {
+    public function registers()
+    {
+        return CashRegister::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+    }
+
     public function open(CashSessionRequest $request)
     {
         $existing = CashSession::where('user_id', $request->user()->id)
@@ -18,15 +27,16 @@ class CashSessionController extends Controller
             ->first();
 
         if ($existing) {
-            return $existing;
+            return $existing->load(['cashRegister', 'user']);
         }
 
         $data = $request->validated();
         $data['user_id'] = $request->user()->id;
         $data['opened_at'] = now();
+        $data['supervisor_confirmed_at'] = now();
         $data['expected_amount'] = $data['opening_amount'];
 
-        return CashSession::create($data);
+        return response()->json(CashSession::create($data)->load(['cashRegister', 'user']), 201);
     }
 
     public function current(Request $request)
@@ -40,7 +50,7 @@ class CashSessionController extends Controller
             return response('null', 200)->header('Content-Type', 'application/json');
         }
 
-        return response()->json($session);
+        return response()->json($session->load(['cashRegister', 'user']));
     }
 
     public function close(Request $request, CashSession $cashSession)
@@ -62,6 +72,6 @@ class CashSessionController extends Controller
             'notes' => $data['notes'] ?? $cashSession->notes,
         ]);
 
-        return $cashSession->fresh();
+        return $cashSession->fresh()->load(['cashRegister', 'user']);
     }
 }

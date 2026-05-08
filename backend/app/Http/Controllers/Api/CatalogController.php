@@ -24,7 +24,13 @@ class CatalogController extends Controller
             ->latest()
             ->paginate($request->integer('per_page', 50));
     }
-    public function branches(Request $request) { return Branch::query()->latest()->paginate($request->integer('per_page', 50)); }
+    public function branches(Request $request)
+    {
+        return Branch::query()
+            ->when(! $request->boolean('include_inactive'), fn ($query) => $query->where('is_active', true))
+            ->latest()
+            ->paginate($request->integer('per_page', 50));
+    }
 
     public function storeCategory(Request $request)
     {
@@ -103,6 +109,28 @@ class CatalogController extends Controller
             'phone' => ['nullable', 'string', 'max:50'],
             'email' => ['nullable', 'email'],
             'address' => ['nullable', 'string'],
+            'is_active' => ['boolean'],
         ]));
+    }
+
+    public function updateBranch(Request $request, Branch $branch)
+    {
+        $branch->update($request->validate([
+            'name' => ['required', 'string', 'max:160'],
+            'code' => ['required', 'string', 'max:40', Rule::unique('branches', 'code')->ignore($branch->id)],
+            'phone' => ['nullable', 'string', 'max:50'],
+            'email' => ['nullable', 'email'],
+            'address' => ['nullable', 'string'],
+            'is_active' => ['boolean'],
+        ]));
+
+        return $branch;
+    }
+
+    public function destroyBranch(Branch $branch)
+    {
+        $branch->update(['is_active' => false]);
+
+        return response()->noContent();
     }
 }

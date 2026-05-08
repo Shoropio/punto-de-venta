@@ -22,7 +22,7 @@ import { getToastTone, roundMoney } from './lib/pos-utils'
 import { emptyProductForm, mapProduct, type ApiProduct, type ProductForm, type ProductIdentifiers } from './types/product'
 import type { Product } from './store/usePosStore'
 import { usePosStore } from './store/usePosStore'
-import { emptyCustomerForm, emptyHaciendaSetting, type AppTheme, type AuthResponse, type CashMovement, type CashSession, type CreditPaymentRow, type Customer, type CustomerForm, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PromotionRow, type Refund, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type ToastMessage, type TopProduct } from './types'
+import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type AppTheme, type AuthResponse, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CreditPaymentRow, type Customer, type CustomerForm, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PromotionRow, type Refund, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type ToastMessage, type TopProduct } from './types'
 
 const HELD_SALE_KEY = 'pos_held_sale'
 
@@ -60,12 +60,15 @@ function App() {
   const [settings, setSettings] = useState<SettingRow[]>([])
   const [haciendaSetting, setHaciendaSetting] = useState<HaciendaSettingRow>(emptyHaciendaSetting)
   const [cashMovements, setCashMovements] = useState<CashMovement[]>([])
+  const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([])
+  const [currentCashSession, setCurrentCashSession] = useState<CashSession | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodRow[]>([])
   const [promotions, setPromotions] = useState<PromotionRow[]>([])
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
   const [creditPayments, setCreditPayments] = useState<CreditPaymentRow[]>([])
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm)
   const [customerForm, setCustomerForm] = useState<CustomerForm>(emptyCustomerForm)
+  const [branchForm, setBranchForm] = useState<BranchForm>(emptyBranchForm)
   const [newCategory, setNewCategory] = useState('')
   const [newBrand, setNewBrand] = useState('')
   const [newSupplier, setNewSupplier] = useState('')
@@ -75,6 +78,8 @@ function App() {
   const [cashMovementType, setCashMovementType] = useState<'deposit' | 'withdrawal'>('deposit')
   const [cashMovementAmount, setCashMovementAmount] = useState('')
   const [cashMovementReason, setCashMovementReason] = useState('')
+  const [cashOpeningForm, setCashOpeningForm] = useState<CashOpeningForm>(emptyCashOpeningForm)
+  const [cashClosingAmount, setCashClosingAmount] = useState('')
   const [creditCustomerId, setCreditCustomerId] = useState('')
   const [creditPaymentAmount, setCreditPaymentAmount] = useState('')
   const [paymentMethodCode, setPaymentMethodCode] = useState('')
@@ -118,7 +123,9 @@ function App() {
 
   const loadSession = useCallback(async () => {
     const session = await api<CashSession | null>('/cash-sessions/current')
+    setCurrentCashSession(session)
     setCashSession(Boolean(session), session?.id ?? null)
+    if (session) setCashClosingAmount(String(session.expected_amount ?? ''))
     return session
   }, [setCashSession])
 
@@ -178,14 +185,20 @@ function App() {
   }, [])
 
   const loadOperations = useCallback(async () => {
-    const [cashResponse, methodResponse, promotionResponse, invoiceResponse, creditResponse] = await Promise.all([
+    const [cashResponse, registerResponse, methodResponse, promotionResponse, invoiceResponse, creditResponse] = await Promise.all([
       api<Paginated<CashMovement>>('/cash-movements?per_page=20'),
+      api<CashRegister[]>('/cash-registers'),
       api<PaymentMethodRow[]>('/payment-methods'),
       api<Paginated<PromotionRow>>('/promotions?per_page=20'),
       api<Paginated<InvoiceRow>>('/invoices?per_page=20'),
       api<Paginated<CreditPaymentRow>>('/credit-payments?per_page=20'),
     ])
     setCashMovements(cashResponse.data)
+    setCashRegisters(registerResponse)
+    setCashOpeningForm((current) => ({
+      ...current,
+      cash_register_id: current.cash_register_id || (registerResponse[0]?.id ? String(registerResponse[0].id) : ''),
+    }))
     setPaymentMethods(methodResponse)
     setPromotions(promotionResponse.data)
     setInvoices(invoiceResponse.data)
@@ -280,20 +293,35 @@ function App() {
     localStorage.removeItem('pos_token')
     setUser(null)
     setApiOnline(false)
+    setCurrentCashSession(null)
     setCashSession(false)
     clearCart()
     setMessage('Sesion cerrada.')
   }
 
   const openCashSession = async () => {
+    if (!cashOpeningForm.cash_register_id || !cashOpeningForm.opening_amount || !cashOpeningForm.shift || !cashOpeningForm.supervisor_name.trim()) {
+      setActiveModule('cash')
+      setMessage('Selecciona caja, turno, fondo inicial y supervisor para abrir caja.')
+      return
+    }
+
     setLoading(true)
     try {
       const session = await api<CashSession>('/cash-sessions/open', {
         method: 'POST',
-        body: JSON.stringify({ cash_register_id: 1, opening_amount: 1000, notes: 'Apertura desde POS web' }),
+        body: JSON.stringify({
+          cash_register_id: Number(cashOpeningForm.cash_register_id),
+          opening_amount: Number(cashOpeningForm.opening_amount),
+          shift: cashOpeningForm.shift,
+          supervisor_name: cashOpeningForm.supervisor_name,
+          notes: 'Supervisor confirma monto presencialmente.',
+        }),
       })
+      setCurrentCashSession(session)
       setCashSession(true, session.id)
-      setMessage('Caja abierta correctamente.')
+      setCashClosingAmount(String(session.expected_amount ?? cashOpeningForm.opening_amount))
+      setMessage('Caja abierta correctamente. Listo para iniciar ventas.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible abrir caja.')
     } finally {
@@ -305,15 +333,16 @@ function App() {
     if (!cashSessionId) return
     setLoading(true)
     try {
-      const expected = await api<CashSession | null>('/cash-sessions/current')
       await api(`/cash-sessions/${cashSessionId}/close`, {
         method: 'POST',
         body: JSON.stringify({
-          closing_amount: Number(expected?.expected_amount ?? 0),
+          closing_amount: Number(cashClosingAmount || currentCashSession?.expected_amount || 0),
           notes: 'Cierre desde POS web',
         }),
       })
+      setCurrentCashSession(null)
       setCashSession(false)
+      setCashClosingAmount('')
       setMessage('Caja cerrada correctamente.')
       await loadReports()
     } catch (error) {
@@ -575,6 +604,64 @@ function App() {
       setMessage('Configuración guardada correctamente.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible guardar la configuración.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveBranch = async () => {
+    if (!branchForm.name.trim() || !branchForm.code.trim()) {
+      setMessage('Captura nombre y codigo de la sucursal.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const body = JSON.stringify({
+        name: branchForm.name,
+        code: branchForm.code,
+        phone: branchForm.phone || null,
+        email: branchForm.email || null,
+        address: branchForm.address || null,
+        is_active: true,
+      })
+      if (branchForm.id) {
+        await api(`/branches/${branchForm.id}`, { method: 'PUT', body })
+        setMessage('Sucursal actualizada correctamente.')
+      } else {
+        await api('/branches', { method: 'POST', body })
+        setMessage('Sucursal creada correctamente.')
+      }
+      setBranchForm(emptyBranchForm)
+      await loadSettings()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible guardar la sucursal.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const editBranch = (branch: NamedCatalog) => {
+    setBranchForm({
+      id: branch.id,
+      name: branch.name,
+      code: branch.code ?? '',
+      phone: branch.phone ?? '',
+      email: branch.email ?? '',
+      address: branch.address ?? '',
+    })
+    setMessage(`Editando sucursal ${branch.name}.`)
+  }
+
+  const deleteBranch = async (branch: NamedCatalog) => {
+    setLoading(true)
+    try {
+      await api(`/branches/${branch.id}`, { method: 'DELETE' })
+      if (branchForm.id === branch.id) setBranchForm(emptyBranchForm)
+      await loadSettings()
+      setMessage(`Sucursal ${branch.name} eliminada.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible eliminar la sucursal.')
     } finally {
       setLoading(false)
     }
@@ -1047,11 +1134,19 @@ function App() {
                     type={cashMovementType}
                     amount={cashMovementAmount}
                     reason={cashMovementReason}
+                    registers={cashRegisters}
+                    openingForm={cashOpeningForm}
+                    currentSession={currentCashSession}
+                    closingAmount={cashClosingAmount}
                     loading={loading}
                     cashSessionOpen={cashSessionOpen}
                     onType={setCashMovementType}
                     onAmount={setCashMovementAmount}
                     onReason={setCashMovementReason}
+                    onOpeningForm={setCashOpeningForm}
+                    onOpening={openCashSession}
+                    onClosingAmount={setCashClosingAmount}
+                    onClosing={closeCashSession}
                     onCreate={createCashMovement}
                   />
                 )}
@@ -1152,6 +1247,7 @@ function App() {
                     currencyCode={currencyCode}
                     defaultTax={defaultTax}
                     branches={branches}
+                    branchForm={branchForm}
                     settings={settings}
                     loading={loading}
                     hasReceipt={Boolean(lastReceipt)}
@@ -1159,6 +1255,11 @@ function App() {
                     onBusinessName={setBusinessName}
                     onCurrencyCode={setCurrencyCode}
                     onDefaultTax={setDefaultTax}
+                    onBranchFormChange={setBranchForm}
+                    onSaveBranch={saveBranch}
+                    onCancelBranch={() => setBranchForm(emptyBranchForm)}
+                    onEditBranch={editBranch}
+                    onDeleteBranch={deleteBranch}
                     onSave={saveSettings}
                     onHaciendaChange={setHaciendaSetting}
                     onSaveHacienda={saveHaciendaSetting}

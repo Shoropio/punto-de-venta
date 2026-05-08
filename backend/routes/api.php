@@ -40,6 +40,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/customers/{customer}', [CatalogController::class, 'destroyCustomer']);
     Route::get('/branches', [CatalogController::class, 'branches']);
     Route::post('/branches', [CatalogController::class, 'storeBranch']);
+    Route::put('/branches/{branch}', [CatalogController::class, 'updateBranch']);
+    Route::delete('/branches/{branch}', [CatalogController::class, 'destroyBranch']);
 
     Route::get('/settings', [SettingController::class, 'index']);
     Route::post('/settings', [SettingController::class, 'upsert']);
@@ -52,6 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'update']);
 
     Route::get('/cash-sessions/current', [CashSessionController::class, 'current']);
+    Route::get('/cash-registers', [CashSessionController::class, 'registers']);
     Route::post('/cash-sessions/open', [CashSessionController::class, 'open']);
     Route::post('/cash-sessions/{cashSession}/close', [CashSessionController::class, 'close']);
     Route::get('/cash-movements', [CashMovementController::class, 'index']);

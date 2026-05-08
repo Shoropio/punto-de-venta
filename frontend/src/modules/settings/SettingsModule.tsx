@@ -1,8 +1,8 @@
-import { Landmark, Printer, Settings } from 'lucide-react'
+import { Edit3, Landmark, Plus, Printer, Settings, Trash2 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
-import type { HaciendaSettingRow, NamedCatalog, SettingRow } from '../../types'
+import type { BranchForm, HaciendaSettingRow, NamedCatalog, SettingRow } from '../../types'
 import { Empty } from '../../components/shared/Empty'
 import { SelectBox } from '../../components/shared/SelectBox'
 import { translateSettingKey, translateSettingValue } from '../../lib/pos-utils'
@@ -12,6 +12,7 @@ export function SettingsModule({
   currencyCode,
   defaultTax,
   branches,
+  branchForm,
   settings,
   loading,
   hasReceipt,
@@ -19,6 +20,11 @@ export function SettingsModule({
   onBusinessName,
   onCurrencyCode,
   onDefaultTax,
+  onBranchFormChange,
+  onSaveBranch,
+  onCancelBranch,
+  onEditBranch,
+  onDeleteBranch,
   onSave,
   onHaciendaChange,
   onSaveHacienda,
@@ -28,6 +34,7 @@ export function SettingsModule({
   currencyCode: string
   defaultTax: string
   branches: NamedCatalog[]
+  branchForm: BranchForm
   settings: SettingRow[]
   loading: boolean
   hasReceipt: boolean
@@ -35,6 +42,11 @@ export function SettingsModule({
   onBusinessName: (value: string) => void
   onCurrencyCode: (value: string) => void
   onDefaultTax: (value: string) => void
+  onBranchFormChange: (value: BranchForm) => void
+  onSaveBranch: () => void
+  onCancelBranch: () => void
+  onEditBranch: (branch: NamedCatalog) => void
+  onDeleteBranch: (branch: NamedCatalog) => void
   onSave: () => void
   onHaciendaChange: (value: HaciendaSettingRow) => void
   onSaveHacienda: () => void
@@ -109,13 +121,38 @@ export function SettingsModule({
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className="overflow-hidden">
+          <div className="border-b border-slate-100 p-4">
+            <h2 className="mb-3 text-lg font-bold">{branchForm.id ? 'Editar sucursal' : 'Nueva sucursal'}</h2>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Input placeholder="Nombre" value={branchForm.name} onChange={(event) => onBranchFormChange({ ...branchForm, name: event.target.value })} />
+              <Input placeholder="Codigo" value={branchForm.code} onChange={(event) => onBranchFormChange({ ...branchForm, code: event.target.value })} />
+              <Input placeholder="Telefono" value={branchForm.phone} onChange={(event) => onBranchFormChange({ ...branchForm, phone: event.target.value })} />
+              <Input placeholder="Email" value={branchForm.email} onChange={(event) => onBranchFormChange({ ...branchForm, email: event.target.value })} />
+              <Input className="md:col-span-2" placeholder="Direccion" value={branchForm.address} onChange={(event) => onBranchFormChange({ ...branchForm, address: event.target.value })} />
+            </div>
+            <div className="mt-3 flex gap-2">
+              <Button onClick={onSaveBranch} disabled={loading}>
+                {branchForm.id ? <Edit3 size={18} /> : <Plus size={18} />}
+                {branchForm.id ? 'Actualizar' : 'Crear'}
+              </Button>
+              {branchForm.id && <Button variant="secondary" onClick={onCancelBranch}>Cancelar</Button>}
+            </div>
+          </div>
           <div className="bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">Sucursales</div>
           {branches.map((branch) => (
-            <div key={branch.id} className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm">
-              <span className="font-semibold">{branch.name}</span>
+            <div key={branch.id} className="grid grid-cols-[1fr_90px_82px] items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+              <span>
+                <span className="block font-semibold">{branch.name}</span>
+                <span className="block text-xs text-slate-500">{branch.phone ?? 'Sin telefono'}</span>
+              </span>
               <span className="text-slate-500">{branch.code}</span>
+              <span className="flex gap-1">
+                <Button aria-label={`Editar ${branch.name}`} className="h-8 px-2" variant="ghost" onClick={() => onEditBranch(branch)}><Edit3 size={14} /></Button>
+                <Button aria-label={`Eliminar ${branch.name}`} className="h-8 px-2" variant="ghost" onClick={() => onDeleteBranch(branch)}><Trash2 size={14} /></Button>
+              </span>
             </div>
           ))}
+          {branches.length === 0 && <Empty text="Sin sucursales." />}
         </Card>
         <Card className="overflow-hidden">
           <div className="bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">Configuraciones guardadas</div>

@@ -3,6 +3,26 @@ export type NamedCatalog = {
   name: string
   code?: string
   phone?: string | null
+  email?: string | null
+  address?: string | null
+  is_active?: boolean
+}
+
+export type BranchForm = {
+  id?: number
+  name: string
+  code: string
+  phone: string
+  email: string
+  address: string
+}
+
+export const emptyBranchForm: BranchForm = {
+  name: '',
+  code: '',
+  phone: '',
+  email: '',
+  address: '',
 }
 
 export type SettingRow = {
