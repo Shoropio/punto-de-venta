@@ -98,9 +98,35 @@ npm run build
 
 Tambien puedes levantar la pila con Docker:
 
+Primera vez, o cuando cambien `Dockerfile`, dependencias o configuracion de Docker:
+
 ```powershell
 cd C:\Users\Shoropio\Desktop\punto-de-venta
 docker compose up --build
+```
+
+Despues, para levantar los servicios normalmente:
+
+```powershell
+docker compose up
+```
+
+Si solo cambiaste el frontend y quieres reconstruir ese contenedor en segundo plano:
+
+```powershell
+docker compose up -d --build frontend
+```
+
+Ejecutar migraciones y seeders solo la primera vez que creas la base de datos:
+
+```powershell
+docker compose exec backend php artisan migrate --seed
+```
+
+Luego no hace falta repetirlo en cada arranque. Solo vuelve a ejecutar migraciones si agregaste cambios a la base de datos o si hay migraciones pendientes:
+
+```powershell
+docker compose exec backend php artisan migrate
 ```
 
 Servicios:
