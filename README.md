@@ -78,7 +78,7 @@ Password: password
 Si necesitas recrear la base con datos iniciales:
 
 ```powershell
-cd C:\Users\Shoropio\Desktop\punto-de-venta\backend
+cd backend
 php artisan migrate:fresh --seed
 ```
 
@@ -87,14 +87,14 @@ php artisan migrate:fresh --seed
 Backend:
 
 ```powershell
-cd C:\Users\Shoropio\Desktop\punto-de-venta\backend
+cd backend
 php artisan test
 ```
 
 Frontend:
 
 ```powershell
-cd C:\Users\Shoropio\Desktop\punto-de-venta\frontend
+cd frontend
 npm run build
 ```
 
