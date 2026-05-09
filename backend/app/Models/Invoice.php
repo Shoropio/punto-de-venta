@@ -18,6 +18,8 @@ class Invoice extends Model
     protected function casts(): array
     {
         return [
+            'document_type' => 'string',
+            'schema_version' => 'string',
             'metadata' => 'array',
             'hacienda_response' => 'array',
             'issued_at' => 'datetime',

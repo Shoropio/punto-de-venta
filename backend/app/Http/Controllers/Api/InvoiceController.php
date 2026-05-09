@@ -32,7 +32,7 @@ class InvoiceController extends Controller
         $data = $request->validate([
             'sale_id' => ['required', 'exists:sales,id'],
             'customer_id' => ['nullable', 'exists:customers,id'],
-            'document_type' => ['nullable', 'in:01,04'],
+            'document_type' => ['nullable', 'in:01,02,03,04,08,09,10'],
             'tax_id' => ['required', 'string', 'max:30'],
             'legal_name' => ['required', 'string', 'max:180'],
             'email' => ['nullable', 'email', 'max:180'],
@@ -40,12 +40,12 @@ class InvoiceController extends Controller
         ]);
 
         $sale = Sale::findOrFail($data['sale_id']);
+        $documentType = $data['document_type'] ?? '01';
 
-        if ($invoice = Invoice::where('sale_id', $sale->id)->first()) {
+        if ($invoice = Invoice::where('sale_id', $sale->id)->where('document_type', $documentType)->first()) {
             return $invoice->load(['sale', 'customer']);
         }
 
-        $documentType = $data['document_type'] ?? '01';
         $fiscalNumber = $this->numberService->next($sale->branch_id, $documentType);
 
         $invoice = Invoice::create([

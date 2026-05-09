@@ -8,15 +8,17 @@ import { currency } from '../../lib/utils'
 import { translateStatus } from '../../lib/pos-utils'
 import type { InvoiceRow, SaleListItem } from '../../types'
 
-export function InvoicesModule({ sales, invoices, saleId, taxId, legalName, email, loading, onSale, onTaxId, onLegalName, onEmail, onCreate, onGenerateXml, onSign, onSubmit, onCheckStatus }: {
+export function InvoicesModule({ sales, invoices, saleId, documentType, taxId, legalName, email, loading, onSale, onDocumentType, onTaxId, onLegalName, onEmail, onCreate, onGenerateXml, onSign, onSubmit, onCheckStatus }: {
   sales: SaleListItem[]
   invoices: InvoiceRow[]
   saleId: string
+  documentType: string
   taxId: string
   legalName: string
   email: string
   loading: boolean
   onSale: (value: string) => void
+  onDocumentType: (value: string) => void
   onTaxId: (value: string) => void
   onLegalName: (value: string) => void
   onEmail: (value: string) => void
@@ -29,11 +31,11 @@ export function InvoicesModule({ sales, invoices, saleId, taxId, legalName, emai
   const documentSupport = [
     ['01', 'Factura electronica', 'XML listo'],
     ['04', 'Tiquete electronico', 'XML listo'],
-    ['02', 'Nota de debito electronica', 'Pendiente XML'],
-    ['03', 'Nota de credito electronica', 'Pendiente XML'],
-    ['08', 'Factura electronica de compra', 'Pendiente'],
-    ['09', 'Factura electronica de exportacion', 'Pendiente'],
-    ['10', 'Recibo electronico de pago', 'Pendiente'],
+    ['02', 'Nota de debito electronica', 'XML listo'],
+    ['03', 'Nota de credito electronica', 'XML listo'],
+    ['08', 'Factura electronica de compra', 'XML listo'],
+    ['09', 'Factura electronica de exportacion', 'XML listo'],
+    ['10', 'Recibo electronico de pago', 'XML listo'],
   ]
 
   return (
@@ -51,10 +53,19 @@ export function InvoicesModule({ sales, invoices, saleId, taxId, legalName, emai
         </div>
       </Card>
 
-      <Card className="grid gap-3 p-4 md:grid-cols-[1fr_160px_1fr_1fr_auto]">
+      <Card className="grid gap-3 p-4 md:grid-cols-[1fr_220px_160px_1fr_1fr_auto]">
         <SelectBox value={saleId} onChange={onSale}>
           <option value="">Venta a facturar</option>
           {sales.map((sale) => <option key={sale.id} value={sale.id}>{sale.folio} - {currency.format(Number(sale.total))}</option>)}
+        </SelectBox>
+        <SelectBox value={documentType} onChange={onDocumentType}>
+          <option value="01">01 Factura electronica</option>
+          <option value="02">02 Nota de debito</option>
+          <option value="03">03 Nota de credito</option>
+          <option value="04">04 Tiquete electronico</option>
+          <option value="08">08 Factura de compra</option>
+          <option value="09">09 Factura de exportacion</option>
+          <option value="10">10 Recibo electronico de pago</option>
         </SelectBox>
         <Input placeholder="RFC / Tax ID" value={taxId} onChange={(event) => onTaxId(event.target.value.toUpperCase())} />
         <Input placeholder="Razon social" value={legalName} onChange={(event) => onLegalName(event.target.value)} />

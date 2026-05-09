@@ -33,7 +33,7 @@ export function BackupsModule({
       <Card className="overflow-hidden">
         <div className="grid grid-cols-[1fr_120px_190px_120px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">
           <span>Archivo</span>
-          <span>Tamano</span>
+          <span>Tamaño</span>
           <span>Fecha</span>
           <span>Acciones</span>
         </div>

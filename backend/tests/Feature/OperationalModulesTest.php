@@ -270,6 +270,53 @@ class OperationalModulesTest extends TestCase
         $this->assertStringContainsString('<NumeroConsecutivo>00100001010000000001</NumeroConsecutivo>', $xml);
     }
 
+    public function test_hacienda_xml_can_be_created_for_all_supported_document_types(): void
+    {
+        Storage::fake('local');
+
+        $documents = [
+            ['type' => '01', 'root' => 'FacturaElectronica'],
+            ['type' => '02', 'root' => 'NotaDebitoElectronica'],
+            ['type' => '03', 'root' => 'NotaCreditoElectronica'],
+            ['type' => '04', 'root' => 'TiqueteElectronico'],
+            ['type' => '08', 'root' => 'FacturaElectronicaCompra'],
+            ['type' => '09', 'root' => 'FacturaElectronicaExportacion'],
+            ['type' => '10', 'root' => 'ReciboElectronicoPago'],
+        ];
+
+        foreach ($documents as $document) {
+            $documentType = $document['type'];
+            $root = $document['root'];
+            $sale = $this->sale();
+
+            $response = $this->postJson('/api/invoices', [
+                'sale_id' => $sale->id,
+                'document_type' => $documentType,
+                'tax_id' => '3101123456',
+                'legal_name' => "Cliente {$documentType}",
+                'email' => 'documentos@example.com',
+                'metadata' => [
+                    'reference_number' => '00100001010000000001',
+                    'reference_document_type' => '01',
+                    'reference_code' => '01',
+                    'reference_reason' => 'Prueba de documento asociado',
+                ],
+            ])->assertCreated()
+                ->assertJsonPath('hacienda_status', 'xml_generated');
+
+            $this->assertSame($documentType, (string) $response->json('document_type'));
+
+            $xml = Storage::disk('local')->get($response->json('xml_path'));
+            $this->assertStringContainsString("<{$root}", $xml);
+            $this->assertStringContainsString("<NumeroConsecutivo>00100001{$documentType}", $xml);
+
+            if (in_array($documentType, ['02', '03', '10'], true)) {
+                $this->assertStringContainsString('<InformacionReferencia>', $xml);
+                $this->assertStringContainsString('<Numero>00100001010000000001</Numero>', $xml);
+            }
+        }
+    }
+
     public function test_invoice_xml_can_be_signed_with_configured_certificate(): void
     {
         Storage::fake('local');

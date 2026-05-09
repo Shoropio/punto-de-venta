@@ -78,19 +78,19 @@ export function PosWorkspace({
   }
 
   return (
-    <div className={isDarkTheme ? 'grid min-h-[calc(100vh-113px)] bg-[#202020] text-white xl:grid-cols-[minmax(0,1fr)_536px]' : 'grid min-h-[calc(100vh-113px)] bg-stone-50 text-stone-950 xl:grid-cols-[minmax(0,1fr)_536px]'}>
-      <section className={isDarkTheme ? 'flex min-w-0 flex-col border-r border-[#4b4b4b]' : 'flex min-w-0 flex-col border-r border-stone-300'}>
+    <div className={isDarkTheme ? 'grid min-h-0 flex-1 overflow-hidden bg-[#202020] text-white xl:grid-cols-[minmax(0,1fr)_536px]' : 'grid min-h-0 flex-1 overflow-hidden bg-stone-50 text-stone-950 xl:grid-cols-[minmax(0,1fr)_536px]'}>
+      <section className={isDarkTheme ? 'flex min-h-0 min-w-0 flex-col border-r border-[#4b4b4b]' : 'flex min-h-0 min-w-0 flex-col border-r border-stone-300'}>
         <div className={isDarkTheme ? 'grid grid-cols-[minmax(260px,1fr)_110px_120px_130px_56px] border-b border-[#4b4b4b] bg-[#1b1b1b] px-3 py-3 text-sm font-bold' : 'grid grid-cols-[minmax(260px,1fr)_110px_120px_130px_56px] border-b border-stone-300 bg-stone-200 px-3 py-3 text-sm font-bold'}>
-          <span>Nombre del producto</span>
+          <span>Producto</span>
           <span className="text-right">Cantidad</span>
           <span className="text-right">Precio</span>
           <span className="text-right">Total</span>
           <span />
         </div>
 
-        <div className="min-h-[360px] flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto">
           {cart.length === 0 ? (
-            <div className={isDarkTheme ? 'flex h-full min-h-[360px] flex-col items-center justify-center px-6 text-center text-stone-400' : 'flex h-full min-h-[360px] flex-col items-center justify-center px-6 text-center text-stone-500'}>
+            <div className={isDarkTheme ? 'flex h-full min-h-[240px] flex-col items-center justify-center px-6 text-center text-stone-400' : 'flex h-full min-h-[240px] flex-col items-center justify-center px-6 text-center text-stone-500'}>
               <strong className={isDarkTheme ? 'text-2xl text-stone-300' : 'text-2xl text-stone-600'}>No hay articulos</strong>
               <span className="mt-2 max-w-2xl text-sm">Busca, escanea o selecciona un producto para iniciar la venta.</span>
             </div>
@@ -122,7 +122,7 @@ export function PosWorkspace({
           )}
         </div>
 
-        <div className={isDarkTheme ? 'border-t border-[#4b4b4b] bg-[#2a2a2a]' : 'border-t border-stone-300 bg-stone-100'}>
+        <div className={isDarkTheme ? 'shrink-0 border-t border-[#4b4b4b] bg-[#2a2a2a]' : 'shrink-0 border-t border-stone-300 bg-stone-100'}>
           <div className={isDarkTheme ? 'grid gap-2 border-b border-[#3b3b3b] p-3 md:grid-cols-3' : 'grid gap-2 border-b border-stone-300 p-3 md:grid-cols-3'}>
             {products.slice(0, 6).map((product) => (
               <button key={product.id} className={isDarkTheme ? 'border border-[#4b4b4b] bg-[#242424] p-3 text-left hover:bg-[#303030]' : 'border border-stone-300 bg-white p-3 text-left hover:bg-stone-200'} onClick={() => onAdd(product)}>
@@ -146,7 +146,7 @@ export function PosWorkspace({
         </div>
       </section>
 
-      <aside className={isDarkTheme ? 'grid content-start gap-1 bg-[#2d2d2d] p-1 print:hidden' : 'grid content-start gap-1 bg-stone-200 p-1 print:hidden'}>
+      <aside className={isDarkTheme ? 'grid min-h-0 content-start gap-1 overflow-y-auto bg-[#2d2d2d] p-1 print:hidden' : 'grid min-h-0 content-start gap-1 overflow-y-auto bg-stone-200 p-1 print:hidden'}>
         <div className="grid grid-cols-4 gap-1">
           <PosAction icon={X} label="Eliminar" onClick={onRemoveLast} muted />
           <PosAction icon={Search} label="Buscar" shortcut="F3" onClick={handleSearch} />
@@ -166,7 +166,7 @@ export function PosWorkspace({
           ))}
         </div>
 
-        <div className="mt-32 grid grid-cols-4 gap-1">
+        <div className="mt-4 grid grid-cols-4 gap-1 xl:mt-8">
           <PosAction icon={Banknote} label={cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'} onClick={onToggleCashSession} />
           <PosAction icon={Utensils} label="Mesa" onClick={() => onMessage('Modo mesa preparado para consumo en sitio.')} />
           <div className="hidden xl:block" />

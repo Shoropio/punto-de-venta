@@ -13,7 +13,12 @@ class HaciendaXmlGenerator
 {
     private const ROOTS = [
         '01' => ['FacturaElectronica', 'https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v4.4/facturaElectronica'],
+        '02' => ['NotaDebitoElectronica', 'https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v4.4/notaDebitoElectronica'],
+        '03' => ['NotaCreditoElectronica', 'https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v4.4/notaCreditoElectronica'],
         '04' => ['TiqueteElectronico', 'https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v4.4/tiqueteElectronico'],
+        '08' => ['FacturaElectronicaCompra', 'https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v4.4/facturaElectronicaCompra'],
+        '09' => ['FacturaElectronicaExportacion', 'https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v4.4/facturaElectronicaExportacion'],
+        '10' => ['ReciboElectronicoPago', 'https://cdn.comprobanteselectronicos.go.cr/xml-schemas/v4.4/reciboElectronicoPago'],
     ];
 
     private const PAYMENT_METHODS = [
@@ -42,7 +47,9 @@ class HaciendaXmlGenerator
             ]);
         }
 
-        [$rootName, $namespace] = self::ROOTS[$invoice->document_type] ?? self::ROOTS['01'];
+        [$rootName, $namespace] = self::ROOTS[$invoice->document_type] ?? throw ValidationException::withMessages([
+            'document_type' => 'Tipo de comprobante Hacienda no soportado.',
+        ]);
 
         $document = new DOMDocument('1.0', 'utf-8');
         $document->formatOutput = true;
@@ -61,6 +68,7 @@ class HaciendaXmlGenerator
         $this->appendPaymentMethods($document, $root, $invoice);
         $this->appendServiceDetail($document, $root, $invoice);
         $this->appendSummary($document, $root, $invoice);
+        $this->appendReference($document, $root, $invoice);
 
         $path = "hacienda/xml/{$invoice->clave}.xml";
         Storage::disk('local')->put($path, $document->saveXML());
@@ -185,6 +193,30 @@ class HaciendaXmlGenerator
         $this->appendText($document, $summary, 'TotalVentaNeta', $this->decimal((float) $invoice->sale->subtotal - (float) $invoice->sale->discount_total));
         $this->appendText($document, $summary, 'TotalImpuesto', $this->decimal($invoice->sale->tax_total));
         $this->appendText($document, $summary, 'TotalComprobante', $this->decimal($invoice->sale->total));
+    }
+
+    private function appendReference(DOMDocument $document, DOMElement $root, Invoice $invoice): void
+    {
+        if (! in_array($invoice->document_type, ['02', '03', '10'], true)) {
+            return;
+        }
+
+        $reference = $root->appendChild($document->createElement('InformacionReferencia'));
+        $this->appendText($document, $reference, 'TipoDoc', data_get($invoice->metadata, 'reference_document_type', '01'));
+        $this->appendText($document, $reference, 'Numero', data_get($invoice->metadata, 'reference_number', $invoice->sale->folio));
+        $this->appendText($document, $reference, 'FechaEmision', data_get($invoice->metadata, 'reference_date', optional($invoice->sale->sold_at)->toRfc3339String() ?? now()->toRfc3339String()));
+        $this->appendText($document, $reference, 'Codigo', data_get($invoice->metadata, 'reference_code', $invoice->document_type === '10' ? '04' : '01'));
+        $this->appendText($document, $reference, 'Razon', data_get($invoice->metadata, 'reference_reason', $this->defaultReferenceReason($invoice->document_type)));
+    }
+
+    private function defaultReferenceReason(string $documentType): string
+    {
+        return match ($documentType) {
+            '02' => 'Ajuste de debito sobre comprobante original',
+            '03' => 'Correccion o anulacion sobre comprobante original',
+            '10' => 'Recibo electronico de pago aplicado al comprobante original',
+            default => 'Referencia al comprobante original',
+        };
     }
 
     private function appendLocation(DOMDocument $document, DOMElement $parent, string $province, string $canton, string $district, ?string $barrio, string $otherSigns): void

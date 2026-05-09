@@ -92,6 +92,7 @@ function App() {
   const [promotionCode, setPromotionCode] = useState('')
   const [promotionValue, setPromotionValue] = useState('10')
   const [invoiceSaleId, setInvoiceSaleId] = useState('')
+  const [invoiceDocumentType, setInvoiceDocumentType] = useState('01')
   const [invoiceTaxId, setInvoiceTaxId] = useState('')
   const [invoiceLegalName, setInvoiceLegalName] = useState('')
   const [invoiceEmail, setInvoiceEmail] = useState('')
@@ -837,8 +838,18 @@ function App() {
     try {
       await api('/invoices', {
         method: 'POST',
-        body: JSON.stringify({ sale_id: Number(invoiceSaleId), tax_id: invoiceTaxId, legal_name: invoiceLegalName, email: invoiceEmail || null }),
+        body: JSON.stringify({
+          sale_id: Number(invoiceSaleId),
+          document_type: invoiceDocumentType,
+          tax_id: invoiceTaxId,
+          legal_name: invoiceLegalName,
+          email: invoiceEmail || null,
+          metadata: ['02', '03', '10'].includes(invoiceDocumentType)
+            ? { reference_document_type: '01', reference_reason: 'Documento asociado al comprobante original' }
+            : null,
+        }),
       })
+      setInvoiceDocumentType('01')
       setInvoiceTaxId('')
       setInvoiceLegalName('')
       setInvoiceEmail('')
@@ -1053,15 +1064,15 @@ function App() {
   }
 
   return (
-    <main className={isDarkTheme ? 'min-h-screen bg-[#202020] text-white' : 'min-h-screen bg-stone-100 text-stone-950'}>
-      <div className="grid min-h-screen grid-cols-1 lg:grid-cols-[88px_1fr]">
-        <aside className="flex border-b border-[#343434] bg-[#202020] lg:flex-col lg:border-b-0 lg:border-r print:hidden">
+    <main className={isDarkTheme ? 'h-dvh overflow-hidden bg-[#202020] text-white' : 'h-dvh overflow-hidden bg-stone-100 text-stone-950'}>
+      <div className="grid h-dvh grid-rows-[auto_1fr] lg:grid-cols-[88px_1fr] lg:grid-rows-1">
+        <aside className="flex min-h-0 border-b border-[#343434] bg-[#202020] lg:flex-col lg:border-b-0 lg:border-r print:hidden">
           <div className="flex h-20 w-20 shrink-0 items-center justify-center">
             <div className={isDarkTheme ? 'flex h-11 w-11 items-center justify-center rounded-none bg-[#2d2d2d] text-white' : 'flex h-11 w-11 items-center justify-center rounded-none bg-[#202020] text-white'}>
               <ReceiptText size={24} />
             </div>
           </div>
-          <nav className="flex flex-1 items-center gap-1 overflow-x-auto px-2 lg:flex-col lg:py-4">
+          <nav className="flex min-h-0 flex-1 items-center gap-1 overflow-x-auto px-2 lg:flex-col lg:items-stretch lg:overflow-x-hidden lg:overflow-y-auto lg:py-4">
             {nav.map((item) => (
               <button
                 key={item.key}
@@ -1077,8 +1088,8 @@ function App() {
           </nav>
         </aside>
 
-        <section className="flex min-w-0 flex-col print:hidden">
-          <header className="flex flex-col gap-4 border-b border-[#343434] bg-[#202020] px-5 py-4 text-white xl:flex-row xl:items-center xl:justify-between">
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden print:hidden">
+          <header className="shrink-0 flex flex-col gap-4 border-b border-[#343434] bg-[#202020] px-5 py-4 text-white xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className={isDarkTheme ? 'text-sm font-medium text-[#38bdf8]' : 'text-sm font-medium text-stone-600'}>{user.branch?.name ?? 'Sucursal Principal'} - {apiOnline ? 'API conectada' : 'Sin conexion API'}</p>
               <h1 className="text-2xl font-bold">{nav.find((item) => item.key === activeModule)?.label ?? 'Punto de venta'}</h1>
@@ -1137,7 +1148,7 @@ function App() {
               onMessage={setPosMessage}
             />
           ) : (
-            <div className="space-y-5 p-5">
+            <div className="min-h-0 flex-1 space-y-5 overflow-auto p-5">
               <ModuleStatusBar
                 userName={user.name}
                 apiOnline={apiOnline}
@@ -1272,11 +1283,13 @@ function App() {
                     sales={sales}
                     invoices={invoices}
                     saleId={invoiceSaleId}
+                    documentType={invoiceDocumentType}
                     taxId={invoiceTaxId}
                     legalName={invoiceLegalName}
                     email={invoiceEmail}
                     loading={loading}
                     onSale={setInvoiceSaleId}
+                    onDocumentType={setInvoiceDocumentType}
                     onTaxId={setInvoiceTaxId}
                     onLegalName={setInvoiceLegalName}
                     onEmail={setInvoiceEmail}

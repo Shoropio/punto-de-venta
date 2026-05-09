@@ -13,6 +13,9 @@ class HaciendaDocumentNumberService
         '02' => 'debit_note_sequence',
         '03' => 'credit_note_sequence',
         '04' => 'ticket_sequence',
+        '08' => 'purchase_invoice_sequence',
+        '09' => 'export_invoice_sequence',
+        '10' => 'payment_receipt_sequence',
     ];
 
     public function next(int $branchId, string $documentType, ?string $environment = null): array
