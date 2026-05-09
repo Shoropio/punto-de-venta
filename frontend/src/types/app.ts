@@ -52,6 +52,17 @@ export type CashRegister = {
   is_active: boolean
 }
 
+export type CashSessionSummary = {
+  session: CashSession
+  sales_count: number
+  gross_sales: string
+  opening_amount: string
+  expected_amount: string
+  cash_deposits: string
+  cash_withdrawals: string
+  payments: Array<{ method: string; total: string; count: number }>
+}
+
 export type BackupRow = {
   name: string
   size: number

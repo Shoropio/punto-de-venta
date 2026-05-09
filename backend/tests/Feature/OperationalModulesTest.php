@@ -84,6 +84,35 @@ class OperationalModulesTest extends TestCase
         $this->assertSame('125.00', $this->session->fresh()->expected_amount);
     }
 
+    public function test_cash_session_summary_returns_arqueo_totals(): void
+    {
+        $product = $this->product(['sale_price' => 50, 'tax_rate' => 0, 'stock' => 5]);
+
+        $this->postJson('/api/cash-movements', [
+            'cash_session_id' => $this->session->id,
+            'type' => 'deposit',
+            'amount' => 20,
+            'reason' => 'Fondo adicional',
+        ])->assertCreated();
+
+        $this->postJson('/api/sales', [
+            'cash_session_id' => $this->session->id,
+            'items' => [['product_id' => $product->id, 'quantity' => 2]],
+            'payments' => [['method' => 'cash', 'amount' => 100]],
+        ])->assertCreated();
+
+        $this->getJson("/api/cash-sessions/{$this->session->id}/summary")
+            ->assertOk()
+            ->assertJsonPath('sales_count', 1)
+            ->assertJsonPath('gross_sales', '100.00')
+            ->assertJsonPath('opening_amount', '100.00')
+            ->assertJsonPath('expected_amount', '220.00')
+            ->assertJsonPath('cash_deposits', '20.00')
+            ->assertJsonPath('cash_withdrawals', '0.00')
+            ->assertJsonPath('payments.0.method', 'cash')
+            ->assertJsonPath('payments.0.total', '100.00');
+    }
+
     public function test_cash_session_opening_requires_shift_supervisor_and_returns_summary(): void
     {
         $register = CashRegister::create(['branch_id' => $this->user->branch_id, 'name' => 'Caja 2', 'code' => 'C2']);

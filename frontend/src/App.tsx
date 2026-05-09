@@ -23,7 +23,7 @@ import { getToastTone, roundMoney } from './lib/pos-utils'
 import { emptyProductForm, mapProduct, type ApiProduct, type ProductForm, type ProductIdentifiers } from './types/product'
 import type { Product } from './store/usePosStore'
 import { usePosStore } from './store/usePosStore'
-import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type AppTheme, type AuthResponse, type BackupRow, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CreditPaymentRow, type Customer, type CustomerForm, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PromotionRow, type Refund, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type ToastMessage, type TopProduct } from './types'
+import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type AppTheme, type AuthResponse, type BackupRow, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CashSessionSummary, type CreditPaymentRow, type Customer, type CustomerForm, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PromotionRow, type Refund, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type ToastMessage, type TopProduct } from './types'
 
 const HELD_SALE_KEY = 'pos_held_sale'
 
@@ -84,6 +84,9 @@ function App() {
   const [cashMovementReason, setCashMovementReason] = useState('')
   const [cashOpeningForm, setCashOpeningForm] = useState<CashOpeningForm>(emptyCashOpeningForm)
   const [cashClosingAmount, setCashClosingAmount] = useState('')
+  const [cashClosingNotes, setCashClosingNotes] = useState('')
+  const [cashClosingDialogOpen, setCashClosingDialogOpen] = useState(false)
+  const [cashClosingSummary, setCashClosingSummary] = useState<CashSessionSummary | null>(null)
   const [creditCustomerId, setCreditCustomerId] = useState('')
   const [creditPaymentAmount, setCreditPaymentAmount] = useState('')
   const [paymentMethodCode, setPaymentMethodCode] = useState('')
@@ -372,20 +375,62 @@ function App() {
     }
   }
 
+  const openCashClosingDialog = async () => {
+    if (!cashSessionId) {
+      handleBlockedAction('No hay caja abierta para cerrar.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const summary = await api<CashSessionSummary>(`/cash-sessions/${cashSessionId}/summary`)
+      setCashClosingSummary(summary)
+      setCashClosingAmount(String(summary.expected_amount ?? currentCashSession?.expected_amount ?? ''))
+      setCashClosingNotes('')
+      setCashClosingDialogOpen(true)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible preparar el cierre de caja.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const cancelCashClosingDialog = () => {
+    if (loading) return
+    setCashClosingDialogOpen(false)
+    setCashClosingSummary(null)
+    setCashClosingNotes('')
+  }
+
   const closeCashSession = async () => {
     if (!cashSessionId) return
+    const counted = Number(cashClosingAmount)
+    const expected = Number(cashClosingSummary?.expected_amount ?? currentCashSession?.expected_amount ?? 0)
+    const difference = roundMoney((Number.isFinite(counted) ? counted : 0) - expected)
+    if (!cashClosingAmount || Number.isNaN(counted)) {
+      handleBlockedAction('Ingresa el efectivo contado para cerrar caja.')
+      return
+    }
+    if (difference !== 0 && !cashClosingNotes.trim()) {
+      handleBlockedAction('Agrega una observacion para justificar el faltante o sobrante.')
+      return
+    }
+
     setLoading(true)
     try {
       await api(`/cash-sessions/${cashSessionId}/close`, {
         method: 'POST',
         body: JSON.stringify({
-          closing_amount: Number(cashClosingAmount || currentCashSession?.expected_amount || 0),
-          notes: 'Cierre desde POS web',
+          closing_amount: counted,
+          notes: cashClosingNotes || 'Cierre desde POS web',
         }),
       })
       setCurrentCashSession(null)
       setCashSession(false)
       setCashClosingAmount('')
+      setCashClosingNotes('')
+      setCashClosingDialogOpen(false)
+      setCashClosingSummary(null)
       setMessage('Caja cerrada correctamente.')
       await loadReports()
     } catch (error) {
@@ -1156,6 +1201,17 @@ function App() {
   const cashReceivedValue = Number(cashReceived)
   const paymentChange = roundMoney(Math.max(0, (Number.isFinite(cashReceivedValue) ? cashReceivedValue : 0) - total))
   const requiresCashAmount = paymentMethod === 'cash' || paymentMethod === 'mixed'
+  const closingExpected = Number(cashClosingSummary?.expected_amount ?? currentCashSession?.expected_amount ?? 0)
+  const closingCounted = Number(cashClosingAmount)
+  const closingDifference = roundMoney((Number.isFinite(closingCounted) ? closingCounted : 0) - closingExpected)
+  const paymentLabels: Record<string, string> = {
+    cash: 'Efectivo',
+    card: 'Tarjeta',
+    transfer: 'Transferencia',
+    sinpe: 'SINPE',
+    credit: 'Credito',
+    mixed: 'Mixto',
+  }
 
   useEffect(() => {
     if (!user || paymentDialogOpen) return
@@ -1268,7 +1324,7 @@ function App() {
               <Button variant="secondary" onClick={toggleFullscreen} title="Pantalla completa" aria-label="Pantalla completa">
                 {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
               </Button>
-              <Button variant={cashSessionOpen ? 'secondary' : 'primary'} onClick={cashSessionOpen ? closeCashSession : openCashSession} disabled={loading}>
+              <Button variant={cashSessionOpen ? 'secondary' : 'primary'} onClick={cashSessionOpen ? openCashClosingDialog : openCashSession} disabled={loading}>
                 <WalletCards size={18} />
                 {cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'}
               </Button>
@@ -1302,7 +1358,7 @@ function App() {
               onUpdateQuantity={updateQuantity}
               onIncrementLast={incrementLastCartItem}
               onApplyDiscount={applyQuickDiscount}
-              onToggleCashSession={cashSessionOpen ? closeCashSession : openCashSession}
+              onToggleCashSession={cashSessionOpen ? openCashClosingDialog : openCashSession}
               onSaveSale={saveCurrentSale}
               onRestoreSale={restoreSavedSale}
               onOpenCustomers={openCustomersFromPos}
@@ -1395,7 +1451,7 @@ function App() {
                     onOpeningForm={setCashOpeningForm}
                     onOpening={openCashSession}
                     onClosingAmount={setCashClosingAmount}
-                    onClosing={closeCashSession}
+                    onClosing={openCashClosingDialog}
                     onCreate={createCashMovement}
                   />
                 )}
@@ -1606,6 +1662,76 @@ function App() {
                   Emitir factura
                 </Button>
               </div>
+            </div>
+          </Card>
+        </div>
+      )}
+      {cashClosingDialogOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 print:hidden">
+          <Card className={isDarkTheme ? 'max-h-[92vh] w-full max-w-3xl overflow-auto border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'max-h-[92vh] w-full max-w-3xl overflow-auto p-5'}>
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className={isDarkTheme ? 'text-sm font-semibold text-[#38bdf8]' : 'text-sm font-semibold text-[#0088cc]'}>Arqueo de caja</p>
+                <h2 className="text-2xl font-bold">Confirmar cierre</h2>
+              </div>
+              <Button variant="ghost" onClick={cancelCashClosingDialog} disabled={loading}>Cancelar</Button>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-4">
+              <div className={isDarkTheme ? 'border border-[#4b4b4b] p-3' : 'border border-stone-200 p-3'}>
+                <span className="block text-xs uppercase text-slate-500">Cajero</span>
+                <strong>{cashClosingSummary?.session.user?.name ?? user.name}</strong>
+              </div>
+              <div className={isDarkTheme ? 'border border-[#4b4b4b] p-3' : 'border border-stone-200 p-3'}>
+                <span className="block text-xs uppercase text-slate-500">Caja</span>
+                <strong>{cashClosingSummary?.session.cash_register?.name ?? currentCashSession?.cash_register?.name ?? 'Caja activa'}</strong>
+              </div>
+              <div className={isDarkTheme ? 'border border-[#4b4b4b] p-3' : 'border border-stone-200 p-3'}>
+                <span className="block text-xs uppercase text-slate-500">Turno</span>
+                <strong>{cashClosingSummary?.session.shift ?? currentCashSession?.shift ?? 'Sin turno'}</strong>
+              </div>
+              <div className={isDarkTheme ? 'border border-[#4b4b4b] p-3' : 'border border-stone-200 p-3'}>
+                <span className="block text-xs uppercase text-slate-500">Ventas</span>
+                <strong>{cashClosingSummary?.sales_count ?? 0}</strong>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className={isDarkTheme ? 'space-y-2 border border-[#4b4b4b] p-4' : 'space-y-2 border border-stone-200 p-4'}>
+                <h3 className="font-bold">Efectivo</h3>
+                <div className="flex justify-between text-sm"><span>Fondo inicial</span><strong>{currency.format(Number(cashClosingSummary?.opening_amount ?? 0))}</strong></div>
+                <div className="flex justify-between text-sm"><span>Depositos</span><strong>{currency.format(Number(cashClosingSummary?.cash_deposits ?? 0))}</strong></div>
+                <div className="flex justify-between text-sm"><span>Retiros</span><strong>{currency.format(Number(cashClosingSummary?.cash_withdrawals ?? 0))}</strong></div>
+                <div className="flex justify-between border-t border-slate-300 pt-2 text-lg font-bold"><span>Esperado</span><span>{currency.format(closingExpected)}</span></div>
+              </div>
+
+              <div className={isDarkTheme ? 'space-y-2 border border-[#4b4b4b] p-4' : 'space-y-2 border border-stone-200 p-4'}>
+                <h3 className="font-bold">Formas de pago</h3>
+                {(cashClosingSummary?.payments ?? []).map((payment) => (
+                  <div key={payment.method} className="flex justify-between text-sm">
+                    <span>{paymentLabels[payment.method] ?? payment.method} ({payment.count})</span>
+                    <strong>{currency.format(Number(payment.total))}</strong>
+                  </div>
+                ))}
+                {(cashClosingSummary?.payments ?? []).length === 0 && <p className="text-sm text-slate-500">No hay ventas cobradas en este turno.</p>}
+                <div className="flex justify-between border-t border-slate-300 pt-2 text-lg font-bold"><span>Total ventas</span><span>{currency.format(Number(cashClosingSummary?.gross_sales ?? 0))}</span></div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-[180px_180px_1fr]">
+              <Input placeholder="Efectivo contado" type="number" value={cashClosingAmount} onChange={(event) => setCashClosingAmount(event.target.value)} />
+              <div className={closingDifference === 0 ? 'border border-[#0088cc] p-3 text-sm font-bold text-[#0088cc]' : 'border border-red-500 p-3 text-sm font-bold text-red-500'}>
+                Diferencia: {currency.format(closingDifference)}
+              </div>
+              <Input placeholder={closingDifference === 0 ? 'Observacion opcional' : 'Motivo de faltante o sobrante'} value={cashClosingNotes} onChange={(event) => setCashClosingNotes(event.target.value)} />
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={cancelCashClosingDialog} disabled={loading}>Cancelar</Button>
+              <Button variant="danger" onClick={closeCashSession} disabled={loading || !cashClosingAmount}>
+                {loading ? <Loader2 className="animate-spin" size={18} /> : <WalletCards size={18} />}
+                Cerrar caja
+              </Button>
             </div>
           </Card>
         </div>
