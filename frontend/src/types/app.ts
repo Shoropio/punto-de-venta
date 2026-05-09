@@ -12,6 +12,7 @@ export type ModuleKey =
   | 'invoices'
   | 'barcodes'
   | 'printer'
+  | 'backups'
   | 'settings'
 
 export type AppTheme = 'dark' | 'light'
@@ -49,6 +50,12 @@ export type CashRegister = {
   name: string
   code: string
   is_active: boolean
+}
+
+export type BackupRow = {
+  name: string
+  size: number
+  created_at: string
 }
 
 export type CashOpeningForm = {

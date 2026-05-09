@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BadgeDollarSign, Banknote, Barcode, BarChart3, Boxes, CreditCard, Loader2, LogOut, Maximize2, Minimize2, Moon, Printer, ReceiptText, Search, Settings, ShieldCheck, Sun, Tags, Users, WalletCards } from 'lucide-react'
+import { Archive, BadgeDollarSign, Banknote, Barcode, BarChart3, Boxes, CreditCard, Loader2, LogOut, Maximize2, Minimize2, Moon, Printer, ReceiptText, Search, Settings, ShieldCheck, Sun, Tags, Users, WalletCards } from 'lucide-react'
 import { Button } from './components/ui/button'
 import { Card } from './components/ui/card'
 import { Input } from './components/ui/input'
@@ -16,13 +16,14 @@ import { InvoicesModule } from './modules/invoices'
 import { BarcodesModule } from './modules/barcodes'
 import { PrinterModule } from './modules/printer'
 import { SettingsModule } from './modules/settings'
-import { api } from './lib/api'
+import { BackupsModule } from './modules/backups'
+import { api, API_URL } from './lib/api'
 import { configureCurrency } from './lib/utils'
 import { getToastTone, roundMoney } from './lib/pos-utils'
 import { emptyProductForm, mapProduct, type ApiProduct, type ProductForm, type ProductIdentifiers } from './types/product'
 import type { Product } from './store/usePosStore'
 import { usePosStore } from './store/usePosStore'
-import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type AppTheme, type AuthResponse, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CreditPaymentRow, type Customer, type CustomerForm, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PromotionRow, type Refund, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type ToastMessage, type TopProduct } from './types'
+import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type AppTheme, type AuthResponse, type BackupRow, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CreditPaymentRow, type Customer, type CustomerForm, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PromotionRow, type Refund, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type ToastMessage, type TopProduct } from './types'
 
 const HELD_SALE_KEY = 'pos_held_sale'
 
@@ -38,6 +39,7 @@ const nav: NavItem[] = [
   { key: 'invoices', label: 'Factura', icon: ReceiptText },
   { key: 'barcodes', label: 'Codigos', icon: Barcode },
   { key: 'printer', label: 'Impresora', icon: Printer },
+  { key: 'backups', label: 'Respaldos', icon: Archive },
   { key: 'settings', label: 'Configuración', icon: Settings },
 ]
 
@@ -65,6 +67,7 @@ function App() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodRow[]>([])
   const [promotions, setPromotions] = useState<PromotionRow[]>([])
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
+  const [backups, setBackups] = useState<BackupRow[]>([])
   const [creditPayments, setCreditPayments] = useState<CreditPaymentRow[]>([])
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm)
   const [customerForm, setCustomerForm] = useState<CustomerForm>(emptyCustomerForm)
@@ -185,13 +188,14 @@ function App() {
   }, [])
 
   const loadOperations = useCallback(async () => {
-    const [cashResponse, registerResponse, methodResponse, promotionResponse, invoiceResponse, creditResponse] = await Promise.all([
+    const [cashResponse, registerResponse, methodResponse, promotionResponse, invoiceResponse, creditResponse, backupResponse] = await Promise.all([
       api<Paginated<CashMovement>>('/cash-movements?per_page=20'),
       api<CashRegister[]>('/cash-registers'),
       api<PaymentMethodRow[]>('/payment-methods'),
       api<Paginated<PromotionRow>>('/promotions?per_page=20'),
       api<Paginated<InvoiceRow>>('/invoices?per_page=20'),
       api<Paginated<CreditPaymentRow>>('/credit-payments?per_page=20'),
+      api<BackupRow[]>('/backups'),
     ])
     setCashMovements(cashResponse.data)
     setCashRegisters(registerResponse)
@@ -202,6 +206,7 @@ function App() {
     setPaymentMethods(methodResponse)
     setPromotions(promotionResponse.data)
     setInvoices(invoiceResponse.data)
+    setBackups(backupResponse)
     setCreditPayments(creditResponse.data)
   }, [])
 
@@ -732,6 +737,75 @@ function App() {
     }
   }
 
+  const createSinpePaymentMethod = async () => {
+    setLoading(true)
+    try {
+      await api('/payment-methods', {
+        method: 'POST',
+        body: JSON.stringify({
+          code: 'sinpe',
+          name: 'SINPE',
+          type: 'transfer',
+          requires_reference: true,
+          affects_cash_drawer: false,
+          is_active: true,
+        }),
+      })
+      await loadOperations()
+      setMessage('SINPE agregado como forma de pago.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible agregar SINPE.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const createBackup = async () => {
+    setLoading(true)
+    try {
+      await api<BackupRow>('/backups', { method: 'POST' })
+      await loadOperations()
+      setMessage('Respaldo creado correctamente.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible crear el respaldo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const downloadBackup = async (backup: BackupRow) => {
+    try {
+      const token = localStorage.getItem('pos_token')
+      const response = await fetch(`${API_URL}/backups/${backup.name}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!response.ok) throw new Error('No fue posible descargar el respaldo.')
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = backup.name
+      link.click()
+      URL.revokeObjectURL(url)
+      setMessage('Descarga de respaldo iniciada.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible descargar el respaldo.')
+    }
+  }
+
+  const deleteBackup = async (backup: BackupRow) => {
+    setLoading(true)
+    try {
+      await api(`/backups/${backup.name}`, { method: 'DELETE' })
+      await loadOperations()
+      setMessage('Respaldo eliminado correctamente.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible eliminar el respaldo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const createPromotion = async () => {
     if (!promotionName.trim() || !promotionCode.trim() || !promotionValue) {
       setMessage('Captura nombre, codigo y descuento de la promocion.')
@@ -1189,6 +1263,7 @@ function App() {
                     onName={setPaymentMethodName}
                     onType={setPaymentMethodType}
                     onCreate={createPaymentMethod}
+                    onCreateSinpe={createSinpePaymentMethod}
                   />
                 )}
 
@@ -1238,6 +1313,16 @@ function App() {
                     onAutoPrint={setAutoPrint}
                     onSave={saveSettings}
                     onTest={printReceipt}
+                  />
+                )}
+
+                {activeModule === 'backups' && (
+                  <BackupsModule
+                    backups={backups}
+                    loading={loading}
+                    onCreate={createBackup}
+                    onDownload={downloadBackup}
+                    onDelete={deleteBackup}
                   />
                 )}
 

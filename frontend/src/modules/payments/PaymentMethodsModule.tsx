@@ -1,4 +1,4 @@
-import { CreditCard } from 'lucide-react'
+import { CreditCard, Smartphone } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
@@ -6,7 +6,7 @@ import { DataCard } from '../../components/shared/DataCard'
 import { SelectBox } from '../../components/shared/SelectBox'
 import type { PaymentMethodRow } from '../../types'
 
-export function PaymentMethodsModule({ methods, code, name, type, loading, onCode, onName, onType, onCreate }: {
+export function PaymentMethodsModule({ methods, code, name, type, loading, onCode, onName, onType, onCreate, onCreateSinpe }: {
   methods: PaymentMethodRow[]
   code: string
   name: string
@@ -16,10 +16,11 @@ export function PaymentMethodsModule({ methods, code, name, type, loading, onCod
   onName: (value: string) => void
   onType: (value: PaymentMethodRow['type']) => void
   onCreate: () => void
+  onCreateSinpe: () => void
 }) {
   return (
     <div className="space-y-4">
-      <Card className="grid gap-3 p-4 md:grid-cols-[160px_1fr_160px_auto]">
+      <Card className="grid gap-3 p-4 md:grid-cols-[160px_1fr_160px_auto_auto]">
         <Input placeholder="Codigo" value={code} onChange={(event) => onCode(event.target.value.toLowerCase())} />
         <Input placeholder="Nombre" value={name} onChange={(event) => onName(event.target.value)} />
         <SelectBox value={type} onChange={(value) => onType(value as PaymentMethodRow['type'])}>
@@ -30,6 +31,7 @@ export function PaymentMethodsModule({ methods, code, name, type, loading, onCod
           <option value="other">Otro</option>
         </SelectBox>
         <Button onClick={onCreate} disabled={loading}><CreditCard size={18} /> Guardar</Button>
+        <Button variant="secondary" onClick={onCreateSinpe} disabled={loading}><Smartphone size={18} /> SINPE</Button>
       </Card>
       <DataCard title="Formas de pago" empty="No hay formas de pago.">
         {methods.map((method) => (

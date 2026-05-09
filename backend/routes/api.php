@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BarcodeController;
+use App\Http\Controllers\Api\BackupController;
 use App\Http\Controllers\Api\CashMovementController;
 use App\Http\Controllers\Api\CashSessionController;
 use App\Http\Controllers\Api\CatalogController;
@@ -90,4 +91,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/reports/sales-summary', [ReportController::class, 'salesSummary']);
     Route::get('/reports/top-products', [ReportController::class, 'topProducts']);
     Route::get('/reports/inventory', [ReportController::class, 'inventory']);
+
+    Route::get('/backups', [BackupController::class, 'index']);
+    Route::post('/backups', [BackupController::class, 'store']);
+    Route::get('/backups/{backup}', [BackupController::class, 'download']);
+    Route::delete('/backups/{backup}', [BackupController::class, 'destroy']);
 });

@@ -26,8 +26,31 @@ export function InvoicesModule({ sales, invoices, saleId, taxId, legalName, emai
   onSubmit: (invoiceId: number) => void
   onCheckStatus: (invoiceId: number) => void
 }) {
+  const documentSupport = [
+    ['01', 'Factura electronica', 'XML listo'],
+    ['04', 'Tiquete electronico', 'XML listo'],
+    ['02', 'Nota de debito electronica', 'Pendiente XML'],
+    ['03', 'Nota de credito electronica', 'Pendiente XML'],
+    ['08', 'Factura electronica de compra', 'Pendiente'],
+    ['09', 'Factura electronica de exportacion', 'Pendiente'],
+    ['10', 'Recibo electronico de pago', 'Pendiente'],
+  ]
+
   return (
     <div className="space-y-4">
+      <Card className="overflow-hidden">
+        <div className="bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">Soporte Hacienda v4.4</div>
+        <div className="grid gap-0 md:grid-cols-2 xl:grid-cols-3">
+          {documentSupport.map(([code, name, status]) => (
+            <div key={code} className="grid grid-cols-[42px_1fr_92px] gap-2 border-t border-slate-100 px-4 py-3 text-sm">
+              <span className="font-bold">{code}</span>
+              <span>{name}</span>
+              <span className={status === 'XML listo' ? 'text-[#0088cc]' : 'text-slate-500'}>{status}</span>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       <Card className="grid gap-3 p-4 md:grid-cols-[1fr_160px_1fr_1fr_auto]">
         <SelectBox value={saleId} onChange={onSale}>
           <option value="">Venta a facturar</option>

@@ -12,6 +12,7 @@ use App\Models\Promotion;
 use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
@@ -105,6 +106,27 @@ class OperationalModulesTest extends TestCase
             ->assertJsonPath('supervisor_name', 'Carlos Ramírez')
             ->assertJsonPath('cash_register.name', 'Caja 2')
             ->assertJsonPath('user.id', $this->user->id);
+    }
+
+    public function test_backup_can_be_created_listed_and_deleted(): void
+    {
+        File::deleteDirectory(storage_path('app/backups'));
+
+        $backup = $this->postJson('/api/backups')
+            ->assertCreated()
+            ->assertJsonStructure(['name', 'size', 'created_at'])
+            ->json('name');
+
+        $this->getJson('/api/backups')
+            ->assertOk()
+            ->assertJsonFragment(['name' => $backup]);
+
+        $this->deleteJson("/api/backups/{$backup}")
+            ->assertNoContent();
+
+        $this->getJson('/api/backups')
+            ->assertOk()
+            ->assertJsonMissing(['name' => $backup]);
     }
 
     public function test_payment_methods_can_be_created_and_updated(): void
