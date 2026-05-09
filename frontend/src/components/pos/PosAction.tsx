@@ -28,12 +28,12 @@ export function PosAction({
 
   return (
     <button
-      className={`relative h-20 border border-[#575757] bg-[#2b2b2b] text-sm font-semibold text-white transition hover:bg-[#383838] aria-disabled:cursor-not-allowed aria-disabled:opacity-45 ${muted ? 'text-stone-400' : ''}`}
+      className={`relative h-[68px] border border-[#575757] bg-[#2b2b2b] text-[13px] font-semibold text-white transition hover:bg-[#383838] aria-disabled:cursor-not-allowed aria-disabled:opacity-45 ${muted ? 'text-stone-400' : ''}`}
       onClick={handleClick}
       aria-disabled={disabled || undefined}
     >
-      {shortcut && <span className="absolute left-2 top-2 text-xs text-stone-300">{shortcut}</span>}
-      <Icon className="mx-auto mb-2" size={28} />
+      {shortcut && <span className="absolute left-2 top-1.5 text-[11px] text-stone-300">{shortcut}</span>}
+      <Icon className="mx-auto mb-1.5" size={24} />
       {label}
     </button>
   )

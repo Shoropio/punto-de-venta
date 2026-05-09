@@ -1284,11 +1284,11 @@ function App() {
 
   return (
     <main className={isDarkTheme ? 'h-dvh overflow-hidden bg-[#202020] text-white' : 'h-dvh overflow-hidden bg-stone-100 text-stone-950'}>
-      <div className="grid h-dvh grid-rows-[auto_1fr] lg:grid-cols-[88px_1fr] lg:grid-rows-1">
+      <div className="grid h-dvh grid-rows-[auto_1fr] lg:grid-cols-[80px_1fr] lg:grid-rows-1">
         <aside className="flex min-h-0 border-b border-[#343434] bg-[#202020] lg:flex-col lg:border-b-0 lg:border-r print:hidden">
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center">
-            <div className={isDarkTheme ? 'flex h-11 w-11 items-center justify-center rounded-none bg-[#2d2d2d] text-white' : 'flex h-11 w-11 items-center justify-center rounded-none bg-[#202020] text-white'}>
-              <ReceiptText size={24} />
+          <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center">
+            <div className={isDarkTheme ? 'flex h-10 w-10 items-center justify-center rounded-none bg-[#2d2d2d] text-white' : 'flex h-10 w-10 items-center justify-center rounded-none bg-[#202020] text-white'}>
+              <ReceiptText size={22} />
             </div>
           </div>
           <nav className="flex min-h-0 flex-1 items-center gap-1 overflow-x-auto px-2 lg:flex-col lg:items-stretch lg:overflow-x-hidden lg:overflow-y-auto lg:py-4">
@@ -1296,39 +1296,39 @@ function App() {
               <button
                 key={item.key}
                 aria-label={`Ir a ${item.label}`}
-                className={`flex h-14 min-w-14 items-center justify-center rounded-none transition ${activeModule === item.key ? 'bg-[#0088cc] text-white' : isDarkTheme ? 'text-stone-400 hover:bg-[#242424] hover:text-white' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'}`}
+                className={`flex h-12 min-w-12 items-center justify-center rounded-none transition ${activeModule === item.key ? 'bg-[#0088cc] text-white' : isDarkTheme ? 'text-stone-400 hover:bg-[#242424] hover:text-white' : 'text-stone-500 hover:bg-stone-100 hover:text-stone-900'}`}
                 data-testid={`nav-${item.key}`}
                 title={item.label}
                 onClick={() => setActiveModule(item.key)}
               >
-                <item.icon size={22} />
+                <item.icon size={20} />
               </button>
             ))}
           </nav>
         </aside>
 
         <section className="flex min-h-0 min-w-0 flex-col overflow-hidden print:hidden">
-          <header className="shrink-0 flex flex-col gap-4 border-b border-[#343434] bg-[#202020] px-5 py-4 text-white xl:flex-row xl:items-center xl:justify-between">
+          <header className="shrink-0 flex flex-col gap-3 border-b border-[#343434] bg-[#202020] px-5 py-3 text-white xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className={isDarkTheme ? 'text-sm font-medium text-[#38bdf8]' : 'text-sm font-medium text-stone-600'}>{user.branch?.name ?? 'Sucursal Principal'} - {apiOnline ? 'API conectada' : 'Sin conexion API'}</p>
               <h1 className="text-2xl font-bold">{nav.find((item) => item.key === activeModule)?.label ?? 'Punto de venta'}</h1>
             </div>
             <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] xl:w-[860px]">
               <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-2.5 text-slate-400" size={18} />
-                <Input ref={searchInputRef} className="pl-10" placeholder="Buscar por nombre, SKU o codigo de barras" value={query} onChange={(event) => setQuery(event.target.value)} />
+                <Search className="pointer-events-none absolute left-3 top-2 text-slate-400" size={16} />
+                <Input ref={searchInputRef} className="h-9 pl-9" placeholder="Buscar por nombre, SKU o codigo de barras" value={query} onChange={(event) => setQuery(event.target.value)} />
               </div>
-              <Button variant="secondary" onClick={toggleTheme} title="Cambiar tema" aria-label="Cambiar tema">
+              <Button className="h-9" variant="secondary" onClick={toggleTheme} title="Cambiar tema" aria-label="Cambiar tema">
                 {isDarkTheme ? <Sun size={18} /> : <Moon size={18} />}
               </Button>
-              <Button variant="secondary" onClick={toggleFullscreen} title="Pantalla completa" aria-label="Pantalla completa">
+              <Button className="h-9" variant="secondary" onClick={toggleFullscreen} title="Pantalla completa" aria-label="Pantalla completa">
                 {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
               </Button>
-              <Button variant={cashSessionOpen ? 'secondary' : 'primary'} onClick={cashSessionOpen ? openCashClosingDialog : openCashSession} disabled={loading}>
+              <Button className="h-9" variant={cashSessionOpen ? 'secondary' : 'primary'} onClick={cashSessionOpen ? openCashClosingDialog : openCashSession} disabled={loading}>
                 <WalletCards size={18} />
                 {cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'}
               </Button>
-              <Button variant="ghost" onClick={logout}>
+              <Button className="h-9" variant="ghost" onClick={logout}>
                 <LogOut size={18} />
               </Button>
             </div>
