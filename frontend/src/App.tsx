@@ -108,6 +108,10 @@ function App() {
   const [message, setMessage] = useState('Inicia sesion para operar con la API.')
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [cashReceived, setCashReceived] = useState('')
+  const [invoicePromptSale, setInvoicePromptSale] = useState<SaleResponse['data'] | null>(null)
+  const [quickInvoiceTaxId, setQuickInvoiceTaxId] = useState('')
+  const [quickInvoiceLegalName, setQuickInvoiceLegalName] = useState('')
+  const [quickInvoiceEmail, setQuickInvoiceEmail] = useState('')
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [theme, setTheme] = useState<AppTheme>(() => (localStorage.getItem('pos_theme') === 'light' ? 'light' : 'dark'))
   const [isFullscreen, setIsFullscreen] = useState(Boolean(document.fullscreenElement))
@@ -436,11 +440,13 @@ function App() {
         }),
       })
       setLastReceipt(sale.data)
+      setInvoicePromptSale(sale.data)
       clearCart()
       await Promise.all([loadProducts(), loadSession(), loadReports()])
       setMessage(`Venta ${sale.data.folio} cobrada correctamente.`)
       setPaymentDialogOpen(false)
       setCashReceived('')
+      window.setTimeout(() => window.print(), 100)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible cobrar la venta.')
     } finally {
@@ -930,6 +936,46 @@ function App() {
       setMessage('Factura registrada.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible registrar factura.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const closeInvoicePrompt = () => {
+    if (loading) return
+    setInvoicePromptSale(null)
+    setQuickInvoiceTaxId('')
+    setQuickInvoiceLegalName('')
+    setQuickInvoiceEmail('')
+    setMessage('Venta finalizada sin comprobante electronico.')
+  }
+
+  const createInvoiceFromPaidSale = async () => {
+    if (!invoicePromptSale || !quickInvoiceTaxId.trim() || !quickInvoiceLegalName.trim()) {
+      handleBlockedAction('Captura identificacion y razon social para facturar.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await api('/invoices', {
+        method: 'POST',
+        body: JSON.stringify({
+          sale_id: invoicePromptSale.id,
+          document_type: '01',
+          tax_id: quickInvoiceTaxId,
+          legal_name: quickInvoiceLegalName,
+          email: quickInvoiceEmail || null,
+        }),
+      })
+      setInvoicePromptSale(null)
+      setQuickInvoiceTaxId('')
+      setQuickInvoiceLegalName('')
+      setQuickInvoiceEmail('')
+      await loadOperations()
+      setMessage('Factura electronica registrada para Hacienda.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible registrar factura electronica.')
     } finally {
       setLoading(false)
     }
@@ -1532,6 +1578,32 @@ function App() {
                 <Button onClick={confirmPayment} disabled={loading}>
                   {loading ? <Loader2 className="animate-spin" size={18} /> : <WalletCards size={18} />}
                   Aceptar
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+      {invoicePromptSale && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 print:hidden">
+          <Card className={isDarkTheme ? 'w-full max-w-lg border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'w-full max-w-lg p-5'}>
+            <div className="mb-4">
+              <p className={isDarkTheme ? 'text-sm font-semibold text-[#38bdf8]' : 'text-sm font-semibold text-[#0088cc]'}>Venta cobrada e impresa</p>
+              <h2 className="text-2xl font-bold">Desea factura electronica?</h2>
+              <p className={isDarkTheme ? 'mt-1 text-sm text-stone-300' : 'mt-1 text-sm text-stone-600'}>
+                Venta {invoicePromptSale.folio} por {currency.format(Number(invoicePromptSale.total))}.
+              </p>
+            </div>
+
+            <div className="grid gap-3">
+              <Input placeholder="Identificacion fiscal" value={quickInvoiceTaxId} onChange={(event) => setQuickInvoiceTaxId(event.target.value)} />
+              <Input placeholder="Razon social" value={quickInvoiceLegalName} onChange={(event) => setQuickInvoiceLegalName(event.target.value)} />
+              <Input placeholder="Correo para factura" value={quickInvoiceEmail} onChange={(event) => setQuickInvoiceEmail(event.target.value)} />
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="secondary" onClick={closeInvoicePrompt} disabled={loading}>No emitir</Button>
+                <Button onClick={createInvoiceFromPaidSale} disabled={loading}>
+                  {loading ? <Loader2 className="animate-spin" size={18} /> : <ReceiptText size={18} />}
+                  Emitir factura
                 </Button>
               </div>
             </div>

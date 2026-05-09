@@ -33,6 +33,7 @@ export type Refund = {
 
 export type SaleResponse = {
   data: {
+    id: number
     folio: string
     subtotal: string
     tax_total: string

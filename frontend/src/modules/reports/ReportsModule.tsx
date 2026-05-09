@@ -1,4 +1,4 @@
-import { RotateCcw } from 'lucide-react'
+import { BadgeX } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Empty } from '../../components/shared/Empty'
@@ -47,19 +47,20 @@ export function ReportsModule({
         </Card>
 
         <Card className="overflow-hidden">
-          <div className="grid grid-cols-[1fr_100px_90px_92px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">
+          <div className="grid grid-cols-[1fr_100px_90px_120px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">
             <span>Venta</span>
             <span>Total</span>
             <span>Estado</span>
             <span>Acción</span>
           </div>
           {sales.map((sale) => (
-            <div key={sale.id} className="grid grid-cols-[1fr_100px_90px_92px] items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+            <div key={sale.id} className="grid grid-cols-[1fr_100px_90px_120px] items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm">
               <span className="font-semibold">{sale.folio}</span>
               <span>{currency.format(Number(sale.total))}</span>
               <span className={sale.status === 'refunded' ? 'text-red-600' : 'text-[#0088cc]'}>{translateStatus(sale.status)}</span>
-              <Button className="h-8 px-2" variant="ghost" disabled={loading || sale.status !== 'completed'} onClick={() => onRefund(sale)} aria-label={`Devolver ${sale.folio}`}>
-                <RotateCcw size={14} />
+              <Button className="h-8 px-2" variant="danger" disabled={loading || sale.status !== 'completed'} onClick={() => onRefund(sale)} aria-label={`Devolver ${sale.folio}`} title="Marcar venta como devuelta">
+                <BadgeX size={14} />
+                Devolver
               </Button>
             </div>
           ))}
