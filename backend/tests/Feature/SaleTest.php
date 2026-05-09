@@ -48,4 +48,41 @@ class SaleTest extends TestCase
 
         $this->assertSame('3.000', $product->fresh()->stock);
     }
+
+    public function test_cash_sale_records_change_without_overstating_drawer(): void
+    {
+        $branch = Branch::create(['name' => 'Principal', 'code' => 'MAIN']);
+        $user = User::factory()->create(['branch_id' => $branch->id]);
+        Sanctum::actingAs($user);
+
+        $register = CashRegister::create(['branch_id' => $branch->id, 'name' => 'Caja 1', 'code' => 'C1']);
+        $session = CashSession::create([
+            'cash_register_id' => $register->id,
+            'user_id' => $user->id,
+            'opening_amount' => 100,
+            'expected_amount' => 100,
+            'opened_at' => now(),
+        ]);
+
+        $product = Product::create([
+            'sku' => 'SALE-CHANGE',
+            'name' => 'Producto Cambio',
+            'cost_price' => 10,
+            'sale_price' => 75,
+            'tax_rate' => 0,
+            'stock' => 5,
+            'unit' => 'piece',
+        ]);
+
+        $this->postJson('/api/sales', [
+            'cash_session_id' => $session->id,
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'payments' => [['method' => 'cash', 'amount' => 100]],
+        ])->assertCreated()
+            ->assertJsonPath('data.total', '75.00')
+            ->assertJsonPath('data.paid_total', '100.00')
+            ->assertJsonPath('data.change_total', '25.00');
+
+        $this->assertSame('175.00', $session->fresh()->expected_amount);
+    }
 }

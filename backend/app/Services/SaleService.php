@@ -91,6 +91,8 @@ class SaleService
             $cashTotal = collect($data['payments'])
                 ->where('method', 'cash')
                 ->sum(fn (array $payment): float => (float) $payment['amount']);
+            $changeTotal = round(max(0, $paidTotal - $total), 2);
+            $cashDrawerIncrease = round(max(0, $cashTotal - $changeTotal), 2);
 
             if ($creditTotal > 0 && empty($data['customer_id'])) {
                 throw ValidationException::withMessages(['customer_id' => 'Selecciona un cliente para venta a credito.']);
@@ -110,14 +112,14 @@ class SaleService
                 'tax_total' => round($taxTotal, 2),
                 'total' => $total,
                 'paid_total' => round($paidTotal, 2),
-                'change_total' => round($paidTotal - $total, 2),
+                'change_total' => $changeTotal,
             ]);
 
             if ($creditTotal > 0) {
                 Customer::whereKey($data['customer_id'])->increment('balance', $creditTotal);
             }
 
-            $session->increment('expected_amount', $cashTotal);
+            $session->increment('expected_amount', $cashDrawerIncrease);
 
             return $sale->load(['items', 'payments']);
         });

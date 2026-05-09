@@ -18,7 +18,7 @@ import { PrinterModule } from './modules/printer'
 import { SettingsModule } from './modules/settings'
 import { BackupsModule } from './modules/backups'
 import { api, API_URL } from './lib/api'
-import { configureCurrency } from './lib/utils'
+import { configureCurrency, currency } from './lib/utils'
 import { getToastTone, roundMoney } from './lib/pos-utils'
 import { emptyProductForm, mapProduct, type ApiProduct, type ProductForm, type ProductIdentifiers } from './types/product'
 import type { Product } from './store/usePosStore'
@@ -106,6 +106,8 @@ function App() {
   const [apiOnline, setApiOnline] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('Inicia sesion para operar con la API.')
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
+  const [cashReceived, setCashReceived] = useState('')
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [theme, setTheme] = useState<AppTheme>(() => (localStorage.getItem('pos_theme') === 'light' ? 'light' : 'dark'))
   const [isFullscreen, setIsFullscreen] = useState(Boolean(document.fullscreenElement))
@@ -248,6 +250,32 @@ function App() {
     setToasts((current) => current.filter((toast) => toast.id !== id))
   }
 
+  const playBlockedSound = useCallback(() => {
+    try {
+      const AudioContextClass = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      if (!AudioContextClass) return
+      const audio = new AudioContextClass()
+      const oscillator = audio.createOscillator()
+      const gain = audio.createGain()
+      oscillator.type = 'square'
+      oscillator.frequency.setValueAtTime(180, audio.currentTime)
+      gain.gain.setValueAtTime(0.08, audio.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + 0.16)
+      oscillator.connect(gain)
+      gain.connect(audio.destination)
+      oscillator.start()
+      oscillator.stop(audio.currentTime + 0.16)
+      window.setTimeout(() => void audio.close(), 220)
+    } catch {
+      // Some browsers block audio contexts until the first user gesture.
+    }
+  }, [])
+
+  const handleBlockedAction = useCallback((value = 'Accion no disponible en este momento.') => {
+    playBlockedSound()
+    setMessage(value)
+  }, [playBlockedSound])
+
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
     document.addEventListener('fullscreenchange', handleFullscreenChange)
@@ -363,7 +391,28 @@ function App() {
     }
   }
 
-  const chargeSale = async () => {
+  const openPaymentDialog = () => {
+    if (!apiOnline || !cashSessionId) {
+      handleBlockedAction('Falta API o caja abierta para cobrar.')
+      return
+    }
+
+    if (cart.length === 0) {
+      handleBlockedAction('Agrega productos antes de cobrar.')
+      return
+    }
+
+    setCashReceived(paymentMethod === 'cash' || paymentMethod === 'mixed' ? '' : total.toFixed(2))
+    setPaymentDialogOpen(true)
+  }
+
+  const closePaymentDialog = () => {
+    if (loading) return
+    setPaymentDialogOpen(false)
+    setCashReceived('')
+  }
+
+  const chargeSale = async (paidAmount = total) => {
     if (!apiOnline || !cashSessionId) {
       setMessage('Falta API o caja abierta para cobrar.')
       return
@@ -372,7 +421,7 @@ function App() {
     setLoading(true)
     try {
       const method = paymentMethod === 'mixed' ? 'cash' : paymentMethod
-      const paymentAmount = Math.ceil(total * 100) / 100
+      const paymentAmount = roundMoney(paidAmount)
       const sale = await api<SaleResponse>('/sales', {
         method: 'POST',
         body: JSON.stringify({
@@ -390,11 +439,30 @@ function App() {
       clearCart()
       await Promise.all([loadProducts(), loadSession(), loadReports()])
       setMessage(`Venta ${sale.data.folio} cobrada correctamente.`)
+      setPaymentDialogOpen(false)
+      setCashReceived('')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible cobrar la venta.')
     } finally {
       setLoading(false)
     }
+  }
+
+  const confirmPayment = () => {
+    const requiresCashAmount = paymentMethod === 'cash' || paymentMethod === 'mixed'
+    const paidAmount = requiresCashAmount ? Number(cashReceived) : total
+
+    if (requiresCashAmount && (!cashReceived || Number.isNaN(paidAmount))) {
+      handleBlockedAction('Ingresa el monto recibido en efectivo.')
+      return
+    }
+
+    if (paidAmount < total) {
+      handleBlockedAction('El efectivo recibido no cubre el total.')
+      return
+    }
+
+    void chargeSale(paidAmount)
   }
 
   const saveProduct = async () => {
@@ -1039,6 +1107,37 @@ function App() {
   const inventoryValue = productsSource.reduce((sum, product) => sum + product.salePrice * product.stock, 0)
   const estimatedProfit = productsSource.reduce((sum, product) => sum + (product.salePrice - product.costPrice) * product.stock, 0)
   const isDarkTheme = theme === 'dark'
+  const cashReceivedValue = Number(cashReceived)
+  const paymentChange = roundMoney(Math.max(0, (Number.isFinite(cashReceivedValue) ? cashReceivedValue : 0) - total))
+  const requiresCashAmount = paymentMethod === 'cash' || paymentMethod === 'mixed'
+
+  useEffect(() => {
+    if (!user || paymentDialogOpen) return
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null
+      const isTyping = target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA' || target?.tagName === 'SELECT' || target?.isContentEditable
+      if (isTyping || activeModule !== 'sale') return
+
+      const actions: Record<string, () => void> = {
+        F2: applyQuickDiscount,
+        F3: focusSearch,
+        F4: incrementLastCartItem,
+        F7: () => setPaymentMethod('transfer'),
+        F8: clearCart,
+        F9: saveCurrentSale,
+        F10: openPaymentDialog,
+      }
+
+      const action = actions[event.key]
+      if (!action) return
+      event.preventDefault()
+      action()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [activeModule, applyQuickDiscount, clearCart, focusSearch, incrementLastCartItem, openPaymentDialog, paymentDialogOpen, saveCurrentSale, setPaymentMethod, user])
 
   if (authChecking) {
     return (
@@ -1150,7 +1249,7 @@ function App() {
               onRefresh={loadProducts}
               onFocusSearch={focusSearch}
               onClear={clearCart}
-              onCharge={chargeSale}
+              onCharge={openPaymentDialog}
               onRemove={removeItem}
               onRemoveLast={removeLastCartItem}
               onSetPayment={setPaymentMethod}
@@ -1164,6 +1263,7 @@ function App() {
               onOpenRefunds={openRefundsFromPos}
               onLock={logout}
               onMessage={setPosMessage}
+              onBlocked={handleBlockedAction}
             />
           ) : (
             <div className="min-h-0 flex-1 space-y-5 overflow-auto p-5">
@@ -1388,6 +1488,56 @@ function App() {
         </section>
       </div>
 
+      {paymentDialogOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 print:hidden">
+          <Card className={isDarkTheme ? 'w-full max-w-md border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'w-full max-w-md p-5'}>
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className={isDarkTheme ? 'text-sm font-semibold text-[#38bdf8]' : 'text-sm font-semibold text-[#0088cc]'}>Cobro de venta</p>
+                <h2 className="text-2xl font-bold">{currency.format(total)}</h2>
+              </div>
+              <Button variant="ghost" onClick={closePaymentDialog} disabled={loading}>Cancelar</Button>
+            </div>
+
+            <div className="space-y-3">
+              <div className={isDarkTheme ? 'grid grid-cols-2 gap-2 bg-[#242424] p-3 text-sm' : 'grid grid-cols-2 gap-2 bg-stone-100 p-3 text-sm'}>
+                <span>Metodo</span>
+                <strong className="text-right">{paymentMethod === 'cash' ? 'Efectivo' : paymentMethod === 'card' ? 'Tarjeta' : paymentMethod === 'transfer' ? 'Transferencia' : paymentMethod === 'credit' ? 'Credito' : 'Mixto'}</strong>
+                <span>Total</span>
+                <strong className="text-right">{currency.format(total)}</strong>
+                {requiresCashAmount && (
+                  <>
+                    <span>Vuelto</span>
+                    <strong className="text-right">{currency.format(paymentChange)}</strong>
+                  </>
+                )}
+              </div>
+
+              {requiresCashAmount && (
+                <Input
+                  autoFocus
+                  inputMode="decimal"
+                  placeholder="Monto recibido en efectivo"
+                  value={cashReceived}
+                  onChange={(event) => setCashReceived(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') confirmPayment()
+                    if (event.key === 'Escape') closePaymentDialog()
+                  }}
+                />
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="secondary" onClick={closePaymentDialog} disabled={loading}>Cancelar</Button>
+                <Button onClick={confirmPayment} disabled={loading}>
+                  {loading ? <Loader2 className="animate-spin" size={18} /> : <WalletCards size={18} />}
+                  Aceptar
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
       {lastReceipt && <PrintableReceipt receipt={lastReceipt} userName={user.name} />}
       <ToastViewport toasts={toasts} onDismiss={dismissToast} />
     </main>

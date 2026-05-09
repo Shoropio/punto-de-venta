@@ -34,6 +34,7 @@ export function PosWorkspace({
   onOpenRefunds,
   onLock,
   onMessage,
+  onBlocked,
 }: {
   products: Product[]
   cart: ReturnType<typeof usePosStore.getState>['cart']
@@ -64,6 +65,7 @@ export function PosWorkspace({
   onOpenRefunds: () => void
   onLock: () => void
   onMessage: (message: string) => void
+  onBlocked: (message?: string) => void
 }) {
   const methodLabels: Record<PaymentMethod, string> = {
     cash: 'Efectivo',
@@ -148,10 +150,10 @@ export function PosWorkspace({
 
       <aside className={isDarkTheme ? 'grid min-h-0 content-start gap-1 overflow-y-auto bg-[#2d2d2d] p-1 print:hidden' : 'grid min-h-0 content-start gap-1 overflow-y-auto bg-stone-200 p-1 print:hidden'}>
         <div className="grid grid-cols-4 gap-1">
-          <PosAction icon={X} label="Eliminar" onClick={onRemoveLast} muted />
+          <PosAction icon={X} label="Eliminar" onClick={onRemoveLast} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay articulos para eliminar.')} muted />
           <PosAction icon={Search} label="Buscar" shortcut="F3" onClick={handleSearch} />
-          <PosAction icon={Plus} label="Cantidad" shortcut="F4" onClick={onIncrementLast} />
-          <PosAction icon={ReceiptText} label="Nueva venta" shortcut="F8" onClick={onClear} />
+          <PosAction icon={Plus} label="Cantidad" shortcut="F4" onClick={onIncrementLast} disabled={cart.length === 0} onBlocked={() => onBlocked('Agrega un producto antes de cambiar cantidad.')} />
+          <PosAction icon={ReceiptText} label="Nueva venta" shortcut="F8" onClick={onClear} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay una venta activa para limpiar.')} />
         </div>
 
         <div className="grid grid-cols-3 gap-1">
@@ -171,13 +173,23 @@ export function PosWorkspace({
           <PosAction icon={Utensils} label="Mesa" onClick={() => onMessage('Modo mesa preparado para consumo en sitio.')} />
           <div className="hidden xl:block" />
           <div className="hidden xl:block" />
-          <PosAction icon={Percent} label="Descuento" shortcut="F2" onClick={onApplyDiscount} />
+          <PosAction icon={Percent} label="Descuento" shortcut="F2" onClick={onApplyDiscount} disabled={cart.length === 0} onBlocked={() => onBlocked('Agrega productos antes de aplicar descuento.')} />
           <PosAction icon={MessageSquare} label="Comentario" onClick={() => onMessage('Comentario agregado a la orden actual.')} />
           <PosAction icon={UserRound} label="Cliente" onClick={onOpenCustomers} />
           <PosAction icon={Users} label="Asignar" onClick={() => onMessage('Orden asignada al cajero activo.')} />
-          <PosAction icon={PackageSearch} label="Guardar" shortcut="F9" onClick={onSaveSale} />
+          <PosAction icon={PackageSearch} label="Guardar" shortcut="F9" onClick={onSaveSale} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay articulos para guardar.')} />
           <PosAction icon={RotateCcw} label="Devolución" onClick={onOpenRefunds} />
-          <button className="col-span-2 h-20 border border-[#0088cc] bg-[#0088cc] text-lg font-bold text-white hover:bg-[#0077b3] disabled:cursor-not-allowed disabled:opacity-50" disabled={loading || !cashSessionOpen || cart.length === 0} onClick={onCharge}>
+          <button
+            className="col-span-2 h-20 border border-[#0088cc] bg-[#0088cc] text-lg font-bold text-white hover:bg-[#0077b3] aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            aria-disabled={loading || !cashSessionOpen || cart.length === 0 || undefined}
+            onClick={() => {
+              if (loading || !cashSessionOpen || cart.length === 0) {
+                onBlocked(!cashSessionOpen ? 'Abre caja antes de cobrar.' : 'Agrega productos antes de cobrar.')
+                return
+              }
+              onCharge()
+            }}
+          >
             <span className="block text-2xl">F10</span>
             {loading ? 'Procesando...' : 'Pago'}
           </button>
