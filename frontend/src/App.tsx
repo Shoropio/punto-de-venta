@@ -49,6 +49,7 @@ function App() {
   const [email, setEmail] = useState('admin@example.com')
   const [password, setPassword] = useState('password')
   const [user, setUser] = useState<AuthResponse['user'] | null>(null)
+  const [authChecking, setAuthChecking] = useState(() => Boolean(localStorage.getItem('pos_token')))
   const [productsSource, setProductsSource] = useState<Product[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [salesSummary, setSalesSummary] = useState<SalesSummary | null>(null)
@@ -255,7 +256,10 @@ function App() {
 
   useEffect(() => {
     const token = localStorage.getItem('pos_token')
-    if (!token) return
+    if (!token) {
+      setAuthChecking(false)
+      return
+    }
 
     api<AuthResponse['user']>('/user')
       .then((profile) => {
@@ -268,6 +272,7 @@ function App() {
         setApiOnline(false)
         setMessage('Sesion expirada. Inicia sesion nuevamente.')
       })
+      .finally(() => setAuthChecking(false))
   }, [refreshAll])
 
   const login = async () => {
@@ -1034,6 +1039,19 @@ function App() {
   const inventoryValue = productsSource.reduce((sum, product) => sum + product.salePrice * product.stock, 0)
   const estimatedProfit = productsSource.reduce((sum, product) => sum + (product.salePrice - product.costPrice) * product.stock, 0)
   const isDarkTheme = theme === 'dark'
+
+  if (authChecking) {
+    return (
+      <main className={isDarkTheme ? 'grid min-h-screen place-items-center bg-[#202020] p-5 text-white' : 'grid min-h-screen place-items-center bg-stone-100 p-5 text-stone-950'}>
+        <Card className={isDarkTheme ? 'w-full max-w-md border-[#4b4b4b] bg-[#2d2d2d] p-6 text-white' : 'w-full max-w-md p-6'}>
+          <div className="flex items-center gap-3">
+            <Loader2 className="animate-spin" size={22} />
+            <span className="font-semibold">Restaurando sesion...</span>
+          </div>
+        </Card>
+      </main>
+    )
+  }
 
   if (!user) {
     return (
