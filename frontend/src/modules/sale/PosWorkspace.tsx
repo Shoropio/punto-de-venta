@@ -162,7 +162,7 @@ export function PosWorkspace({
           {(['cash', 'card', 'mixed'] as const).map((method) => (
             <button
               key={method}
-              className={`h-14 border border-[#575757] bg-[#1f1f1f] text-[13px] font-semibold text-white hover:bg-[#333] ${paymentMethod === method ? 'border-b-2 border-b-[#0088cc]' : ''}`}
+              className={`h-12 border border-[#575757] bg-[#1f1f1f] text-xs font-semibold text-white hover:bg-[#333] ${paymentMethod === method ? 'border-b-2 border-b-[#0088cc]' : ''}`}
               onClick={() => onSetPayment(method)}
             >
               {methodLabels[method]}
@@ -170,9 +170,9 @@ export function PosWorkspace({
           ))}
         </div>
 
-        <div className={isDarkTheme ? 'h-4 shrink-0 border border-[#4b4b4b] bg-[#202020]' : 'h-4 shrink-0 border border-stone-300 bg-stone-100'} />
+        {/* <div className={isDarkTheme ? 'h-4 shrink-0 border border-[#4b4b4b] bg-[#202020]' : 'h-4 shrink-0 border border-stone-300 bg-stone-100'} /> */}
 
-        <div className="grid min-h-[312px] flex-1 grid-cols-4 grid-rows-4 gap-1">
+        <div className="grid shrink-0 grid-cols-4 auto-rows-[60px] gap-1">
           <PosAction icon={Banknote} label={cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'} onClick={onToggleCashSession} />
           <PosAction icon={Percent} label="Descuento" shortcut="F2" onClick={onApplyDiscount} disabled={cart.length === 0} onBlocked={() => onBlocked('Agrega productos antes de aplicar descuento.')} />
           <PosAction icon={UserRound} label="Cliente" onClick={onOpenCustomers} />
@@ -182,22 +182,7 @@ export function PosWorkspace({
           <PosAction icon={PackageSearch} label="En espera" shortcut="F9" onClick={onSaveSale} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay articulos para guardar.')} />
           <PosAction icon={MoreHorizontal} label="Recuperar" onClick={onRestoreSale} />
           <button
-            className="row-span-2 border border-red-700 bg-red-700 text-[13px] font-semibold text-white hover:bg-red-600 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-            aria-disabled={cart.length === 0 || undefined}
-            onClick={() => {
-              if (cart.length === 0) {
-                onBlocked('No hay una orden activa para anular.')
-                return
-              }
-              onCancelOrder()
-            }}
-          >
-            <Trash2 className="mx-auto mb-1.5" size={22} />
-            Anular orden
-          </button>
-
-          <button
-            className="col-span-2 border border-[#0088cc] bg-[#0088cc] text-base font-bold text-white hover:bg-[#0077b3] aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            className="row-span-2 border border-[#0088cc] bg-[#0088cc] text-sm font-bold text-white hover:bg-[#0077b3] aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             aria-disabled={loading || !cashSessionOpen || cart.length === 0 || undefined}
             onClick={() => {
               if (loading || !cashSessionOpen || cart.length === 0) {
@@ -207,13 +192,28 @@ export function PosWorkspace({
               onCharge()
             }}
           >
-            <span className="block text-xl">F10</span>
+            <span className="block text-lg">F10</span>
             {loading ? 'Procesando...' : 'Pago'}
           </button>
-          <PosAction icon={CreditCard} label="Transferir" shortcut="F7" active={paymentMethod === 'transfer'} onClick={() => onSetPayment('transfer')} />
+
           <PosAction icon={Lock} label="Bloquear" onClick={onLock} />
-          <div className={isDarkTheme ? 'col-span-3 border border-[#3b3b3b] bg-[#252525]' : 'col-span-3 border border-stone-300 bg-stone-100'} />
+          <PosAction icon={CreditCard} label="Transferir" shortcut="F7" active={paymentMethod === 'transfer'} onClick={() => onSetPayment('transfer')} />
+          <button
+            className="border border-red-700 bg-red-700 text-xs font-semibold text-white hover:bg-red-600 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            aria-disabled={cart.length === 0 || undefined}
+            onClick={() => {
+              if (cart.length === 0) {
+                onBlocked('No hay una orden activa para anular.')
+                return
+              }
+              onCancelOrder()
+            }}
+          >
+            <Trash2 className="mx-auto mb-1" size={20} />
+            Anular orden
+          </button>
         </div>
+        <div className={isDarkTheme ? 'min-h-0 flex-1 border border-[#3b3b3b] bg-[#252525]' : 'min-h-0 flex-1 border border-stone-300 bg-stone-100'} />
       </aside>
     </div>
   )
