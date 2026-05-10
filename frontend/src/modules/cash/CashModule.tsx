@@ -74,7 +74,7 @@ export function CashModule({
                 Supervisor: {currentSession.supervisor_name ?? 'Confirmado presencialmente'}
               </div>
               <Input placeholder="Monto contado al cierre" type="number" value={closingAmount} onChange={(event) => onClosingAmount(event.target.value)} />
-              <Button variant="secondary" onClick={onClosing} disabled={loading || !closingAmount}>
+              <Button variant="secondary" onClick={onClosing} disabled={loading}>
                 <LockKeyhole size={18} />
                 Cerrar caja
               </Button>

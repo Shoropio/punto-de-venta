@@ -14,6 +14,7 @@ export function PosWorkspace({
   loading,
   isDarkTheme,
   statusMessage,
+  selectedCustomerName,
   cashSessionOpen,
   paymentMethod,
   onAdd,
@@ -32,6 +33,7 @@ export function PosWorkspace({
   onSaveSale,
   onRestoreSale,
   onOpenCustomers,
+  onClearCustomer,
   onOpenRefunds,
   onLock,
   onMessage,
@@ -46,6 +48,7 @@ export function PosWorkspace({
   loading: boolean
   isDarkTheme: boolean
   statusMessage: string
+  selectedCustomerName?: string
   cashSessionOpen: boolean
   paymentMethod: PaymentMethod
   onAdd: (product: Product) => void
@@ -64,6 +67,7 @@ export function PosWorkspace({
   onSaveSale: () => void
   onRestoreSale: () => void
   onOpenCustomers: () => void
+  onClearCustomer: () => void
   onOpenRefunds: () => void
   onLock: () => void
   onMessage: (message: string) => void
@@ -137,7 +141,14 @@ export function PosWorkspace({
           </div>
           <div className="grid grid-cols-[1fr_200px] gap-3 p-3">
             <div className="space-y-1.5">
-              <div className="text-xs uppercase text-slate-500">Productos encontrados: {products.length}</div>
+              <div className="flex items-center justify-between gap-2 text-xs uppercase text-slate-500">
+                <span>Productos encontrados: {products.length}</span>
+                {selectedCustomerName && (
+                  <button className="text-[#38bdf8] hover:text-white" onClick={onClearCustomer} title="Quitar cliente de la venta">
+                    Cliente: {selectedCustomerName}
+                  </button>
+                )}
+              </div>
               <div className={isDarkTheme ? 'border border-[#454545] bg-[#242424] px-3 py-1.5 text-xs text-stone-300' : 'border border-stone-300 bg-white px-3 py-1.5 text-xs text-stone-600'}>{statusMessage}</div>
             </div>
             <div className="space-y-1 text-xs">

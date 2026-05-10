@@ -73,3 +73,41 @@ input,
 select {
   font: inherit;
 }
+
+@page {
+  size: var(--receipt-width, 80mm) auto;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body,
+  #root {
+    width: var(--receipt-width, 80mm);
+    min-width: var(--receipt-width, 80mm);
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .receipt-print,
+  .receipt-print * {
+    visibility: visible;
+  }
+
+  .receipt-print {
+    position: fixed;
+    inset: 0 auto auto 0;
+    display: block !important;
+    width: var(--receipt-width, 80mm);
+    margin: 0;
+    padding: 3mm;
+    color: #000 !important;
+    background: #fff !important;
+  }
+}

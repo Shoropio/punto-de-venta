@@ -40,6 +40,7 @@ export type SaleResponse = {
     total: string
     paid_total: string
     change_total: string
+    customer?: { name?: string } | null
     items: Array<{ product_name: string; quantity: string; unit_price: string; line_total: string }>
     payments: Array<{ method: string; amount: string }>
   }

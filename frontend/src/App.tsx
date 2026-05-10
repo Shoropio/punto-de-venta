@@ -26,6 +26,14 @@ import { usePosStore } from './store/usePosStore'
 import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type AppTheme, type AuthResponse, type BackupRow, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CashSessionSummary, type CreditPaymentRow, type Customer, type CustomerForm, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PromotionRow, type Refund, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type ToastMessage, type TopProduct } from './types'
 
 const HELD_SALE_KEY = 'pos_held_sale'
+const cashDenominations = [20000, 10000, 5000, 2000, 1000, 500, 100, 50, 25, 10, 5] as const
+type ConfirmAction = {
+  title: string
+  message: string
+  tone?: 'danger' | 'primary'
+  confirmLabel?: string
+  onConfirm: () => void | Promise<void>
+}
 
 const nav: NavItem[] = [
   { key: 'sale', label: 'Venta', icon: BadgeDollarSign },
@@ -85,8 +93,11 @@ function App() {
   const [cashOpeningForm, setCashOpeningForm] = useState<CashOpeningForm>(emptyCashOpeningForm)
   const [cashClosingAmount, setCashClosingAmount] = useState('')
   const [cashClosingNotes, setCashClosingNotes] = useState('')
+  const [cashBreakdown, setCashBreakdown] = useState<Record<string, string>>({})
   const [cashClosingDialogOpen, setCashClosingDialogOpen] = useState(false)
   const [cashClosingSummary, setCashClosingSummary] = useState<CashSessionSummary | null>(null)
+  const [selectedCustomerId, setSelectedCustomerId] = useState('')
+  const [customerDialogOpen, setCustomerDialogOpen] = useState(false)
   const [creditCustomerId, setCreditCustomerId] = useState('')
   const [creditPaymentAmount, setCreditPaymentAmount] = useState('')
   const [paymentMethodCode, setPaymentMethodCode] = useState('')
@@ -118,6 +129,7 @@ function App() {
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [discountDialogOpen, setDiscountDialogOpen] = useState(false)
   const [customDiscountValue, setCustomDiscountValue] = useState('5')
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null)
   const [theme, setTheme] = useState<AppTheme>(() => (localStorage.getItem('pos_theme') === 'light' ? 'light' : 'dark'))
   const [isFullscreen, setIsFullscreen] = useState(Boolean(document.fullscreenElement))
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -136,6 +148,15 @@ function App() {
     cashSessionId,
     setCashSession,
   } = usePosStore()
+
+  const askConfirmation = (action: ConfirmAction) => setConfirmAction(action)
+
+  const runConfirmedAction = async () => {
+    if (!confirmAction) return
+    const action = confirmAction
+    setConfirmAction(null)
+    await action.onConfirm()
+  }
 
   const loadSession = useCallback(async () => {
     const session = await api<CashSession | null>('/cash-sessions/current')
@@ -243,6 +264,10 @@ function App() {
   useEffect(() => {
     configureCurrency(currencyCode)
   }, [currencyCode])
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--receipt-width', receiptWidth === '58' ? '58mm' : '80mm')
+  }, [receiptWidth])
 
   useEffect(() => {
     if (!message || message === lastToastMessageRef.current) return
@@ -389,6 +414,7 @@ function App() {
       setCashClosingSummary(summary)
       setCashClosingAmount('')
       setCashClosingNotes('')
+      setCashBreakdown({})
       setCashClosingDialogOpen(true)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible preparar el cierre de caja.')
@@ -402,6 +428,7 @@ function App() {
     setCashClosingDialogOpen(false)
     setCashClosingSummary(null)
     setCashClosingNotes('')
+    setCashBreakdown({})
   }
 
   const closeCashSession = async () => {
@@ -415,6 +442,10 @@ function App() {
     }
     if (difference !== 0 && !cashClosingNotes.trim()) {
       handleBlockedAction('Agrega una observacion para justificar el faltante o sobrante.')
+      return
+    }
+    if (pendingFiscalCount > 0) {
+      handleBlockedAction(`Hay ${pendingFiscalCount} documento(s) Hacienda pendientes. Resuelve o consulta estado antes de cerrar caja.`)
       return
     }
 
@@ -431,6 +462,7 @@ function App() {
       setCashSession(false)
       setCashClosingAmount('')
       setCashClosingNotes('')
+      setCashBreakdown({})
       setCashClosingDialogOpen(false)
       setCashClosingSummary(null)
       setMessage('Caja cerrada correctamente.')
@@ -477,6 +509,7 @@ function App() {
         method: 'POST',
         body: JSON.stringify({
           cash_session_id: cashSessionId,
+          customer_id: selectedCustomer ? selectedCustomer.id : null,
           items: cart.map((item) => ({
             product_id: item.id,
             quantity: item.quantity,
@@ -488,7 +521,13 @@ function App() {
       })
       setLastReceipt(sale.data)
       setInvoicePromptSale(sale.data)
+      if (selectedCustomer) {
+        setQuickInvoiceTaxId(selectedCustomer.identification_number ?? '')
+        setQuickInvoiceLegalName(selectedCustomer.name)
+        setQuickInvoiceEmail(selectedCustomer.email ?? '')
+      }
       clearCart()
+      setSelectedCustomerId('')
       await Promise.all([loadProducts(), loadSession(), loadReports()])
       setMessage(`Venta ${sale.data.folio} cobrada correctamente.`)
       setPaymentDialogOpen(false)
@@ -581,17 +620,25 @@ function App() {
   }
 
   const deleteProduct = async (product: Product) => {
-    setLoading(true)
-    try {
-      await api(`/products/${product.id}`, { method: 'DELETE' })
-      if (productForm.id === product.id) setProductForm(emptyProductForm)
-      await loadProducts()
-      setMessage(`${product.name} eliminado del inventario.`)
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'No fue posible eliminar el producto.')
-    } finally {
-      setLoading(false)
-    }
+    askConfirmation({
+      title: 'Eliminar producto',
+      message: `Se desactivara ${product.name} del inventario. Esta accion quedara auditada.`,
+      tone: 'danger',
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        setLoading(true)
+        try {
+          await api(`/products/${product.id}`, { method: 'DELETE' })
+          if (productForm.id === product.id) setProductForm(emptyProductForm)
+          await loadProducts()
+          setMessage(`${product.name} eliminado del inventario.`)
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : 'No fue posible eliminar el producto.')
+        } finally {
+          setLoading(false)
+        }
+      },
+    })
   }
 
   const regenerateProductIdentifiers = async () => {
@@ -669,33 +716,50 @@ function App() {
   }
 
   const deleteCustomer = async (customer: Customer) => {
-    setLoading(true)
-    try {
-      await api(`/customers/${customer.id}`, { method: 'DELETE' })
-      if (customerForm.id === customer.id) setCustomerForm(emptyCustomerForm)
-      await loadCustomers()
-      setMessage(`${customer.name} eliminado.`)
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'No fue posible eliminar el cliente.')
-    } finally {
-      setLoading(false)
-    }
+    askConfirmation({
+      title: 'Eliminar cliente',
+      message: `Se desactivara ${customer.name}. Sus ventas historicas se conservaran.`,
+      tone: 'danger',
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        setLoading(true)
+        try {
+          await api(`/customers/${customer.id}`, { method: 'DELETE' })
+          if (customerForm.id === customer.id) setCustomerForm(emptyCustomerForm)
+          if (selectedCustomerId === String(customer.id)) setSelectedCustomerId('')
+          await loadCustomers()
+          setMessage(`${customer.name} eliminado.`)
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : 'No fue posible eliminar el cliente.')
+        } finally {
+          setLoading(false)
+        }
+      },
+    })
   }
 
   const refundSale = async (sale: SaleListItem) => {
-    setLoading(true)
-    try {
-      await api('/refunds', {
-        method: 'POST',
-        body: JSON.stringify({ sale_id: sale.id, reason: 'Devolucion desde POS web' }),
-      })
-      await Promise.all([loadProducts(), loadReports(), loadSession()])
-      setMessage(`Venta ${sale.folio} devuelta correctamente.`)
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'No fue posible devolver la venta.')
-    } finally {
-      setLoading(false)
-    }
+    askConfirmation({
+      title: 'Confirmar devolucion',
+      message: `Se devolvera la venta ${sale.folio} por ${currency.format(Number(sale.total))} y se ajustara inventario/caja.`,
+      tone: 'danger',
+      confirmLabel: 'Devolver',
+      onConfirm: async () => {
+        setLoading(true)
+        try {
+          await api('/refunds', {
+            method: 'POST',
+            body: JSON.stringify({ sale_id: sale.id, reason: 'Devolucion desde POS web' }),
+          })
+          await Promise.all([loadProducts(), loadReports(), loadSession()])
+          setMessage(`Venta ${sale.folio} devuelta correctamente.`)
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : 'No fue posible devolver la venta.')
+        } finally {
+          setLoading(false)
+        }
+      },
+    })
   }
 
   const createCatalogItem = async (kind: 'category' | 'brand' | 'supplier') => {
@@ -786,17 +850,25 @@ function App() {
   }
 
   const deleteBranch = async (branch: NamedCatalog) => {
-    setLoading(true)
-    try {
-      await api(`/branches/${branch.id}`, { method: 'DELETE' })
-      if (branchForm.id === branch.id) setBranchForm(emptyBranchForm)
-      await loadSettings()
-      setMessage(`Sucursal ${branch.name} eliminada.`)
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'No fue posible eliminar la sucursal.')
-    } finally {
-      setLoading(false)
-    }
+    askConfirmation({
+      title: 'Eliminar sucursal',
+      message: `Se desactivara la sucursal ${branch.name}.`,
+      tone: 'danger',
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        setLoading(true)
+        try {
+          await api(`/branches/${branch.id}`, { method: 'DELETE' })
+          if (branchForm.id === branch.id) setBranchForm(emptyBranchForm)
+          await loadSettings()
+          setMessage(`Sucursal ${branch.name} eliminada.`)
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : 'No fue posible eliminar la sucursal.')
+        } finally {
+          setLoading(false)
+        }
+      },
+    })
   }
 
   const createCashMovement = async () => {
@@ -921,16 +993,24 @@ function App() {
   }
 
   const deleteBackup = async (backup: BackupRow) => {
-    setLoading(true)
-    try {
-      await api(`/backups/${backup.name}`, { method: 'DELETE' })
-      await loadOperations()
-      setMessage('Respaldo eliminado correctamente.')
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'No fue posible eliminar el respaldo.')
-    } finally {
-      setLoading(false)
-    }
+    askConfirmation({
+      title: 'Eliminar respaldo',
+      message: `Se eliminara el archivo ${backup.name}.`,
+      tone: 'danger',
+      confirmLabel: 'Eliminar',
+      onConfirm: async () => {
+        setLoading(true)
+        try {
+          await api(`/backups/${backup.name}`, { method: 'DELETE' })
+          await loadOperations()
+          setMessage('Respaldo eliminado correctamente.')
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : 'No fue posible eliminar el respaldo.')
+        } finally {
+          setLoading(false)
+        }
+      },
+    })
   }
 
   const createPromotion = async () => {
@@ -1188,9 +1268,18 @@ function App() {
       return
     }
 
-    clearCart()
-    setPaymentMethod('cash')
-    setMessage('Nueva venta iniciada.')
+    askConfirmation({
+      title: 'Nueva venta',
+      message: 'Se limpiara la orden actual sin cobrarla.',
+      tone: 'danger',
+      confirmLabel: 'Limpiar orden',
+      onConfirm: () => {
+        clearCart()
+        setSelectedCustomerId('')
+        setPaymentMethod('cash')
+        setMessage('Nueva venta iniciada.')
+      },
+    })
   }
 
   const cancelCurrentOrder = () => {
@@ -1199,9 +1288,18 @@ function App() {
       return
     }
 
-    clearCart()
-    setPaymentMethod('cash')
-    setMessage('Orden anulada.')
+    askConfirmation({
+      title: 'Anular orden',
+      message: `Se anulara la orden actual con ${cart.length} articulo(s). Esta accion queda registrada en la operacion del cajero.`,
+      tone: 'danger',
+      confirmLabel: 'Anular orden',
+      onConfirm: () => {
+        clearCart()
+        setSelectedCustomerId('')
+        setPaymentMethod('cash')
+        setMessage('Orden anulada.')
+      },
+    })
   }
 
   const restoreSavedSale = () => {
@@ -1221,8 +1319,8 @@ function App() {
   }
 
   const openCustomersFromPos = () => {
-    setActiveModule('customers')
-    setMessage('Selecciona o registra un cliente para la venta.')
+    setCustomerDialogOpen(true)
+    setMessage('Selecciona el cliente para asociarlo a la venta.')
   }
 
   const openRefundsFromPos = () => {
@@ -1262,6 +1360,9 @@ function App() {
   const discount = cart.reduce((sum, item) => sum + item.discount, 0)
   const tax = cart.reduce((sum, item) => sum + roundMoney(((item.salePrice * item.quantity - item.discount) * item.taxRate) / 100), 0)
   const total = roundMoney(Math.max(0, subtotal - discount + tax))
+  const selectedCustomer = customers.find((customer) => String(customer.id) === selectedCustomerId) ?? null
+  const pendingFiscalCount = invoices.filter((invoice) => ['pending_xml', 'generated', 'xml_generated', 'signed', 'submitted', 'received', 'processing'].includes(invoice.hacienda_status ?? invoice.status)).length
+  const cashBreakdownTotal = cashDenominations.reduce((sum, denomination) => sum + denomination * Number(cashBreakdown[String(denomination)] || 0), 0)
   const lowStockProducts = productsSource.filter((product) => product.stock <= product.minStock)
   const inventoryValue = productsSource.reduce((sum, product) => sum + product.salePrice * product.stock, 0)
   const estimatedProfit = productsSource.reduce((sum, product) => sum + (product.salePrice - product.costPrice) * product.stock, 0)
@@ -1280,6 +1381,13 @@ function App() {
     credit: 'Credito',
     mixed: 'Mixto',
   }
+
+  useEffect(() => {
+    const hasBreakdown = Object.values(cashBreakdown).some((value) => Number(value) > 0)
+    if (cashClosingDialogOpen && hasBreakdown) {
+      setCashClosingAmount(String(cashBreakdownTotal))
+    }
+  }, [cashBreakdown, cashBreakdownTotal, cashClosingDialogOpen])
 
   useEffect(() => {
     if (!user || paymentDialogOpen) return
@@ -1426,6 +1534,7 @@ function App() {
               loading={loading}
               isDarkTheme={isDarkTheme}
               statusMessage={message}
+              selectedCustomerName={selectedCustomer?.name}
               cashSessionOpen={cashSessionOpen}
               paymentMethod={paymentMethod}
               onAdd={addItem}
@@ -1444,6 +1553,10 @@ function App() {
               onSaveSale={saveCurrentSale}
               onRestoreSale={restoreSavedSale}
               onOpenCustomers={openCustomersFromPos}
+              onClearCustomer={() => {
+                setSelectedCustomerId('')
+                setMessage('Cliente removido de la venta.')
+              }}
               onOpenRefunds={openRefundsFromPos}
               onLock={logout}
               onMessage={setPosMessage}
@@ -1672,6 +1785,46 @@ function App() {
         </section>
       </div>
 
+      {customerDialogOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 print:hidden">
+          <Card className={isDarkTheme ? 'max-h-[88vh] w-full max-w-2xl overflow-auto border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'max-h-[88vh] w-full max-w-2xl overflow-auto p-5'}>
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <p className={isDarkTheme ? 'text-sm font-semibold text-[#38bdf8]' : 'text-sm font-semibold text-[#0088cc]'}>Cliente de la venta</p>
+                <h2 className="text-2xl font-bold">Seleccionar cliente</h2>
+              </div>
+              <Button variant="ghost" onClick={() => setCustomerDialogOpen(false)}>Cerrar</Button>
+            </div>
+            <div className="grid gap-2">
+              <button
+                className={isDarkTheme ? 'border border-[#4b4b4b] bg-[#242424] px-3 py-3 text-left text-sm hover:bg-[#303030]' : 'border border-stone-200 px-3 py-3 text-left text-sm hover:bg-stone-50'}
+                onClick={() => {
+                  setSelectedCustomerId('')
+                  setCustomerDialogOpen(false)
+                  setMessage('Venta sin cliente asociado.')
+                }}
+              >
+                Consumidor final
+              </button>
+              {customers.map((customer) => (
+                <button
+                  key={customer.id}
+                  className={String(customer.id) === selectedCustomerId ? 'border border-[#0088cc] bg-[#0088cc] px-3 py-3 text-left text-sm text-white' : isDarkTheme ? 'border border-[#4b4b4b] bg-[#242424] px-3 py-3 text-left text-sm hover:bg-[#303030]' : 'border border-stone-200 px-3 py-3 text-left text-sm hover:bg-stone-50'}
+                  onClick={() => {
+                    setSelectedCustomerId(String(customer.id))
+                    setCustomerDialogOpen(false)
+                    setMessage(`${customer.name} asociado a la venta.`)
+                  }}
+                >
+                  <span className="block font-bold">{customer.name}</span>
+                  <span className={String(customer.id) === selectedCustomerId ? 'text-white/80' : 'text-slate-500'}>{customer.identification_number ?? 'Sin identificacion'} {customer.email ? `- ${customer.email}` : ''}</span>
+                </button>
+              ))}
+            </div>
+          </Card>
+        </div>
+      )}
+
       {paymentDialogOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 print:hidden">
           <Card className={isDarkTheme ? 'w-full max-w-md border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'w-full max-w-md p-5'}>
@@ -1811,6 +1964,11 @@ function App() {
                 <strong>{cashClosingSummary?.sales_count ?? 0}</strong>
               </div>
             </div>
+            {pendingFiscalCount > 0 && (
+              <div className="mt-4 border border-amber-500 bg-amber-500/10 p-3 text-sm text-amber-200">
+                Hay {pendingFiscalCount} documento(s) Hacienda pendientes. El cierre se bloqueara hasta resolver o consultar estado.
+              </div>
+            )}
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <div className={isDarkTheme ? 'space-y-2 border border-[#4b4b4b] p-4' : 'space-y-2 border border-stone-200 p-4'}>
@@ -1834,6 +1992,28 @@ function App() {
               </div>
             </div>
 
+            <div className="mt-4 border border-[#4b4b4b] p-4">
+              <h3 className="mb-3 font-bold">Desglose de billetes y monedas</h3>
+              <div className="grid gap-2 sm:grid-cols-3 md:grid-cols-4">
+                {cashDenominations.map((denomination) => (
+                  <label key={denomination} className="grid grid-cols-[1fr_72px] items-center gap-2 text-sm">
+                    <span>{currency.format(denomination)}</span>
+                    <Input
+                      className="h-8 px-2"
+                      type="number"
+                      min="0"
+                      value={cashBreakdown[String(denomination)] ?? ''}
+                      onChange={(event) => setCashBreakdown((current) => ({ ...current, [denomination]: event.target.value }))}
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="mt-3 flex justify-between border-t border-[#4b4b4b] pt-2 text-sm font-bold">
+                <span>Total desglose</span>
+                <span>{currency.format(cashBreakdownTotal)}</span>
+              </div>
+            </div>
+
             <div className="mt-4 grid gap-3 md:grid-cols-[180px_180px_1fr]">
               <Input placeholder="Efectivo contado" type="number" value={cashClosingAmount} onChange={(event) => setCashClosingAmount(event.target.value)} />
               <div className={closingDifference === 0 ? 'border border-[#0088cc] p-3 text-sm font-bold text-[#0088cc]' : 'border border-red-500 p-3 text-sm font-bold text-red-500'}>
@@ -1844,7 +2024,17 @@ function App() {
 
             <div className="mt-4 grid grid-cols-2 gap-2">
               <Button variant="secondary" onClick={cancelCashClosingDialog} disabled={loading}>Cancelar</Button>
-              <Button variant="danger" onClick={closeCashSession} disabled={loading || !cashClosingAmount}>
+              <Button
+                variant="danger"
+                onClick={() => askConfirmation({
+                  title: 'Cerrar caja',
+                  message: `Se cerrara la caja con ${currency.format(closingCounted)} contado y diferencia de ${currency.format(closingDifference)}.`,
+                  tone: 'danger',
+                  confirmLabel: 'Cerrar caja',
+                  onConfirm: closeCashSession,
+                })}
+                disabled={loading || !cashClosingAmount || pendingFiscalCount > 0}
+              >
                 {loading ? <Loader2 className="animate-spin" size={18} /> : <WalletCards size={18} />}
                 Cerrar caja
               </Button>
@@ -1852,7 +2042,22 @@ function App() {
           </Card>
         </div>
       )}
-      {lastReceipt && <PrintableReceipt receipt={lastReceipt} userName={user.name} />}
+      {confirmAction && (
+        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/70 p-4 print:hidden">
+          <Card className={isDarkTheme ? 'w-full max-w-md border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'w-full max-w-md p-5'}>
+            <p className={confirmAction.tone === 'danger' ? 'text-sm font-semibold text-red-400' : 'text-sm font-semibold text-[#0088cc]'}>Confirmacion requerida</p>
+            <h2 className="mt-1 text-2xl font-bold">{confirmAction.title}</h2>
+            <p className={isDarkTheme ? 'mt-2 text-sm text-stone-300' : 'mt-2 text-sm text-stone-600'}>{confirmAction.message}</p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <Button variant="secondary" onClick={() => setConfirmAction(null)} disabled={loading}>Cancelar</Button>
+              <Button variant={confirmAction.tone === 'danger' ? 'danger' : 'primary'} onClick={runConfirmedAction} disabled={loading}>
+                {confirmAction.confirmLabel ?? 'Confirmar'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+      {lastReceipt && <PrintableReceipt receipt={lastReceipt} userName={user.name} businessName={businessName} widthMm={receiptWidth} />}
       <ToastViewport toasts={toasts} onDismiss={dismissToast} />
     </main>
   )
