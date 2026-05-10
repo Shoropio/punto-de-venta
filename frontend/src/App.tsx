@@ -18,6 +18,7 @@ import { PrinterModule } from './modules/printer'
 import { SettingsModule } from './modules/settings'
 import { BackupsModule } from './modules/backups'
 import { AdminModule } from './modules/admin'
+import { DashboardModule } from './modules/dashboard'
 import { api, API_URL } from './lib/api'
 import { configureCurrency, currency } from './lib/utils'
 import { getToastTone, roundMoney } from './lib/pos-utils'
@@ -1716,17 +1717,7 @@ function App() {
 
               <section className="min-w-0">
                 {activeModule === 'dashboard' && (
-                  <AdminModule
-                    dashboard={dashboard}
-                    roles={roles}
-                    permissions={permissions}
-                    users={adminUsers}
-                    logs={activityLogs}
-                    loading={loading}
-                    onTogglePermission={toggleRolePermission}
-                    onAssignRole={assignUserRole}
-                    onTestHacienda={testHaciendaConnection}
-                  />
+                  <DashboardModule dashboard={dashboard} />
                 )}
 
                 {activeModule === 'inventory' && (
@@ -1941,7 +1932,6 @@ function App() {
 
                 {activeModule === 'admin' && (
                   <AdminModule
-                    dashboard={dashboard}
                     roles={roles}
                     permissions={permissions}
                     users={adminUsers}

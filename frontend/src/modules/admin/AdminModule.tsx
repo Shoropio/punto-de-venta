@@ -1,12 +1,10 @@
-import { CheckCircle2, Landmark, ShieldCheck } from 'lucide-react'
+import { Landmark } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { SelectBox } from '../../components/shared/SelectBox'
-import { currency } from '../../lib/utils'
-import type { ActivityLogRow, AdminUserRow, DashboardSummary, PermissionRow, RoleRow } from '../../types'
+import type { ActivityLogRow, AdminUserRow, PermissionRow, RoleRow } from '../../types'
 
 export function AdminModule({
-  dashboard,
   roles,
   permissions,
   users,
@@ -16,7 +14,6 @@ export function AdminModule({
   onAssignRole,
   onTestHacienda,
 }: {
-  dashboard: DashboardSummary | null
   roles: RoleRow[]
   permissions: PermissionRow[]
   users: AdminUserRow[]
@@ -38,11 +35,9 @@ export function AdminModule({
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 xl:grid-cols-4">
-        <Metric label="Ventas hoy" value={String(dashboard?.sales_today ?? 0)} />
-        <Metric label="Ingreso hoy" value={currency.format(Number(dashboard?.gross_today ?? 0))} />
-        <Metric label="Stock bajo" value={String(dashboard?.low_stock ?? 0)} />
-        <Metric label="Hacienda pendientes" value={`${dashboard?.pending_hacienda ?? 0}/${dashboard?.rejected_hacienda ?? 0} rechaz.`} />
+      <div>
+        <p className="text-sm font-semibold text-[#0088cc]">Administracion</p>
+        <h2 className="text-2xl font-bold">Usuarios, permisos y auditoria</h2>
       </div>
 
       <Card className="p-4">
@@ -117,17 +112,6 @@ export function AdminModule({
           </div>
         ))}
       </Card>
-
-      <Card className="overflow-hidden">
-        <div className="bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">Cajas abiertas</div>
-        {(dashboard?.open_cash_sessions ?? []).map((session) => (
-          <div key={session.id} className="flex items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm">
-            <CheckCircle2 className="text-[#0088cc]" size={18} />
-            <span className="font-semibold">{session.cash_register?.name ?? `Sesion ${session.id}`}</span>
-            <span className="text-slate-500">{session.user?.name ?? 'Sin usuario'}</span>
-          </div>
-        ))}
-      </Card>
     </div>
   )
 }
@@ -152,16 +136,4 @@ function humanizePermission(permission: string): string {
     .split('.')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ')
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <Card className="flex items-center gap-3 p-4">
-      <ShieldCheck className="text-[#0088cc]" size={22} />
-      <div>
-        <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
-        <p className="text-lg font-bold">{value}</p>
-      </div>
-    </Card>
-  )
 }
