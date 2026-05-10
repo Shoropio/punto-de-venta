@@ -1100,12 +1100,16 @@ function App() {
   }
 
   const toggleFullscreen = async () => {
-    if (document.fullscreenElement) {
-      await document.exitFullscreen()
-      return
-    }
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen()
+        return
+      }
 
-    await document.documentElement.requestFullscreen()
+      await document.documentElement.requestFullscreen()
+    } catch {
+      setMessage('Pantalla completa no disponible en este navegador.')
+    }
   }
 
   const focusSearch = () => {
@@ -1150,6 +1154,28 @@ function App() {
     localStorage.setItem(HELD_SALE_KEY, JSON.stringify(cart))
     clearCart()
     setMessage('Venta guardada temporalmente.')
+  }
+
+  const startNewSale = () => {
+    if (cart.length === 0) {
+      handleBlockedAction('No hay una venta activa para limpiar.')
+      return
+    }
+
+    clearCart()
+    setPaymentMethod('cash')
+    setMessage('Nueva venta iniciada.')
+  }
+
+  const cancelCurrentOrder = () => {
+    if (cart.length === 0) {
+      handleBlockedAction('No hay una orden activa para anular.')
+      return
+    }
+
+    clearCart()
+    setPaymentMethod('cash')
+    setMessage('Orden anulada.')
   }
 
   const restoreSavedSale = () => {
@@ -1328,7 +1354,7 @@ function App() {
                 <WalletCards size={18} />
                 {cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'}
               </Button>
-              <Button className="h-9" variant="ghost" onClick={logout}>
+              <Button className="h-9" variant="ghost" onClick={logout} title="Cerrar sesion" aria-label="Cerrar sesion">
                 <LogOut size={18} />
               </Button>
             </div>
@@ -1350,10 +1376,11 @@ function App() {
               onAdd={addItem}
               onRefresh={loadProducts}
               onFocusSearch={focusSearch}
-              onClear={clearCart}
+              onClear={startNewSale}
               onCharge={openPaymentDialog}
               onRemove={removeItem}
               onRemoveLast={removeLastCartItem}
+              onCancelOrder={cancelCurrentOrder}
               onSetPayment={setPaymentMethod}
               onUpdateQuantity={updateQuantity}
               onIncrementLast={incrementLastCartItem}

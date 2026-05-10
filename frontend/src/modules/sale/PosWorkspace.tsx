@@ -23,6 +23,7 @@ export function PosWorkspace({
   onCharge,
   onRemove,
   onRemoveLast,
+  onCancelOrder,
   onSetPayment,
   onUpdateQuantity,
   onIncrementLast,
@@ -54,6 +55,7 @@ export function PosWorkspace({
   onCharge: () => void
   onRemove: (productId: number) => void
   onRemoveLast: () => void
+  onCancelOrder: () => void
   onSetPayment: (method: PaymentMethod) => void
   onUpdateQuantity: (productId: number, quantity: number) => void
   onIncrementLast: () => void
@@ -194,8 +196,18 @@ export function PosWorkspace({
             {loading ? 'Procesando...' : 'Pago'}
           </button>
           <PosAction icon={Lock} label="Bloquear" onClick={onLock} />
-          <PosAction icon={CreditCard} label="Transferir" shortcut="F7" onClick={() => onSetPayment('transfer')} />
-          <button className="h-[68px] border border-red-700 bg-red-700 text-[13px] font-semibold text-white hover:bg-red-600" onClick={onClear}>
+          <PosAction icon={CreditCard} label="Transferir" shortcut="F7" active={paymentMethod === 'transfer'} onClick={() => onSetPayment('transfer')} />
+          <button
+            className="h-[68px] border border-red-700 bg-red-700 text-[13px] font-semibold text-white hover:bg-red-600 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            aria-disabled={cart.length === 0 || undefined}
+            onClick={() => {
+              if (cart.length === 0) {
+                onBlocked('No hay una orden activa para anular.')
+                return
+              }
+              onCancelOrder()
+            }}
+          >
             <Trash2 className="mx-auto mb-1.5" size={22} />
             Anular orden
           </button>
