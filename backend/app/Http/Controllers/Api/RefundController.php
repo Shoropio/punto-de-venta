@@ -7,6 +7,8 @@ use App\Models\CashSession;
 use App\Models\Product;
 use App\Models\Refund;
 use App\Models\Sale;
+use App\Services\AccessControl;
+use App\Services\ActivityLogger;
 use App\Services\StockService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,14 +21,16 @@ class RefundController extends Controller
         return Refund::with(['sale', 'user'])->latest()->paginate($request->integer('per_page', 20));
     }
 
-    public function store(Request $request, StockService $stockService)
+    public function store(Request $request, StockService $stockService, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
+        $accessControl->authorize($request->user(), 'pos.sell');
+
         $data = $request->validate([
             'sale_id' => ['required', 'exists:sales,id'],
             'reason' => ['required', 'string', 'max:220'],
         ]);
 
-        return DB::transaction(function () use ($data, $request, $stockService) {
+        return DB::transaction(function () use ($data, $request, $stockService, $activityLogger) {
             $sale = Sale::with('items.product')->lockForUpdate()->findOrFail($data['sale_id']);
 
             if (! in_array($sale->status, ['completed', 'partial_refund'], true)) {
@@ -59,6 +63,13 @@ class RefundController extends Controller
             CashSession::whereKey($sale->cash_session_id)
                 ->where('status', 'open')
                 ->decrement('expected_amount', (float) $sale->total);
+
+            $activityLogger->log($request->user(), 'refund.created', $refund, [
+                'sale_id' => $sale->id,
+                'sale_folio' => $sale->folio,
+                'amount' => $refund->amount,
+                'reason' => $refund->reason,
+            ]);
 
             return $refund->load(['sale', 'user']);
         });

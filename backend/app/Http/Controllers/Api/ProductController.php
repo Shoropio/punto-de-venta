@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\ProductRequest;
 use App\Http\Resources\ProductResource;
 use App\Models\Product;
+use App\Services\AccessControl;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -33,13 +35,20 @@ class ProductController extends Controller
         return ProductResource::collection($query->paginate($request->integer('per_page', 20)));
     }
 
-    public function store(ProductRequest $request)
+    public function store(ProductRequest $request, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
+        $accessControl->authorize($request->user(), 'inventory.manage');
+
         $data = $request->validated();
         $data['sku'] = ($data['sku'] ?? null) ?: $this->generateSku();
         $data['barcode'] = ($data['barcode'] ?? null) ?: $this->generateBarcode();
 
         $product = Product::create($data)->fresh(['category', 'brand', 'supplier']);
+        $activityLogger->log($request->user(), 'product.created', $product, [
+            'sku' => $product->sku,
+            'barcode' => $product->barcode,
+            'name' => $product->name,
+        ]);
 
         return (new ProductResource($product))->response()->setStatusCode(201);
     }
@@ -49,20 +58,33 @@ class ProductController extends Controller
         return new ProductResource($product->load(['category', 'brand', 'supplier']));
     }
 
-    public function update(ProductRequest $request, Product $product)
+    public function update(ProductRequest $request, Product $product, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
+        $accessControl->authorize($request->user(), 'inventory.manage');
+
         $data = $request->validated();
         $data['sku'] = ($data['sku'] ?? null) ?: $this->generateSku();
         $data['barcode'] = array_key_exists('barcode', $data) && ! $data['barcode'] ? $this->generateBarcode() : ($data['barcode'] ?? $product->barcode);
 
+        $before = $product->only(['sku', 'barcode', 'name', 'sale_price', 'stock', 'is_active']);
         $product->update($data);
+        $activityLogger->log($request->user(), 'product.updated', $product, [
+            'before' => $before,
+            'after' => $product->only(['sku', 'barcode', 'name', 'sale_price', 'stock', 'is_active']),
+        ]);
 
         return new ProductResource($product->load(['category', 'brand', 'supplier']));
     }
 
-    public function destroy(Product $product)
+    public function destroy(Request $request, Product $product, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
+        $accessControl->authorize($request->user(), 'inventory.manage');
+
         $product->update(['is_active' => false]);
+        $activityLogger->log($request->user(), 'product.deactivated', $product, [
+            'sku' => $product->sku,
+            'name' => $product->name,
+        ]);
 
         return response()->noContent();
     }

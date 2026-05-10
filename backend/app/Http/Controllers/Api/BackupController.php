@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\AccessControl;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -19,8 +21,10 @@ class BackupController extends Controller
             ->values();
     }
 
-    public function store(Request $request)
+    public function store(Request $request, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
+        $accessControl->authorize($request->user(), 'settings.manage');
+
         File::ensureDirectoryExists($this->backupDirectory());
 
         $filename = 'backup-' . now()->format('Ymd-His') . '-' . Str::lower(Str::random(4)) . '.zip';
@@ -40,7 +44,10 @@ class BackupController extends Controller
         $zip->addFromString('database.json', json_encode($this->databaseDump(), JSON_PRETTY_PRINT));
         $zip->close();
 
-        return response()->json($this->backupRow($path), 201);
+        $row = $this->backupRow($path);
+        $activityLogger->log($request->user(), 'backup.created', null, $row);
+
+        return response()->json($row, 201);
     }
 
     public function download(string $backup)
@@ -50,9 +57,14 @@ class BackupController extends Controller
         return response()->download($path);
     }
 
-    public function destroy(string $backup)
+    public function destroy(Request $request, string $backup, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        File::delete($this->resolveBackup($backup));
+        $accessControl->authorize($request->user(), 'settings.manage');
+
+        $path = $this->resolveBackup($backup);
+        $row = $this->backupRow($path);
+        File::delete($path);
+        $activityLogger->log($request->user(), 'backup.deleted', null, $row);
 
         return response()->noContent();
     }

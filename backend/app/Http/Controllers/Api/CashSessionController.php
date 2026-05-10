@@ -9,6 +9,8 @@ use App\Models\CashRegister;
 use App\Models\CashSession;
 use App\Models\Payment;
 use App\Models\Sale;
+use App\Services\AccessControl;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -23,8 +25,10 @@ class CashSessionController extends Controller
             ->get();
     }
 
-    public function open(CashSessionRequest $request)
+    public function open(CashSessionRequest $request, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
+        $accessControl->authorize($request->user(), 'pos.sell');
+
         $existing = CashSession::where('user_id', $request->user()->id)
             ->where('status', 'open')
             ->latest()
@@ -40,7 +44,16 @@ class CashSessionController extends Controller
         $data['supervisor_confirmed_at'] = now();
         $data['expected_amount'] = $data['opening_amount'];
 
-        return response()->json(CashSession::create($data)->load(['cashRegister', 'user']), 201);
+        $session = CashSession::create($data)->load(['cashRegister', 'user']);
+
+        $activityLogger->log($request->user(), 'cash_session.opened', $session, [
+            'cash_register_id' => $session->cash_register_id,
+            'opening_amount' => $session->opening_amount,
+            'shift' => $session->shift,
+            'supervisor_name' => $session->supervisor_name,
+        ]);
+
+        return response()->json($session, 201);
     }
 
     public function current(Request $request)
@@ -104,8 +117,10 @@ class CashSessionController extends Controller
         ]);
     }
 
-    public function close(Request $request, CashSession $cashSession)
+    public function close(Request $request, CashSession $cashSession, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
+        $accessControl->authorize($request->user(), 'pos.sell');
+
         if ($cashSession->status === 'closed') {
             throw ValidationException::withMessages(['cash_session' => 'La caja ya esta cerrada.']);
         }
@@ -123,6 +138,14 @@ class CashSessionController extends Controller
             'notes' => $data['notes'] ?? $cashSession->notes,
         ]);
 
-        return $cashSession->fresh()->load(['cashRegister', 'user']);
+        $freshSession = $cashSession->fresh()->load(['cashRegister', 'user']);
+
+        $activityLogger->log($request->user(), 'cash_session.closed', $freshSession, [
+            'closing_amount' => $freshSession->closing_amount,
+            'expected_amount' => $freshSession->expected_amount,
+            'difference_amount' => $freshSession->difference_amount,
+        ]);
+
+        return $freshSession;
     }
 }

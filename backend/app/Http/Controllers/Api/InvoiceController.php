@@ -5,11 +5,14 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Invoice;
 use App\Models\Sale;
+use App\Services\AccessControl;
+use App\Services\ActivityLogger;
 use App\Services\Hacienda\HaciendaApiClient;
 use App\Services\Hacienda\HaciendaDocumentNumberService;
 use App\Services\Hacienda\HaciendaXmlGenerator;
 use App\Services\Hacienda\HaciendaXmlSigner;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 class InvoiceController extends Controller
 {
@@ -27,8 +30,10 @@ class InvoiceController extends Controller
         return Invoice::with(['sale', 'customer'])->latest()->paginate($request->integer('per_page', 20));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
+        $accessControl->authorize($request->user(), 'pos.sell');
+
         $data = $request->validate([
             'sale_id' => ['required', 'exists:sales,id'],
             'customer_id' => ['nullable', 'exists:customers,id'],
@@ -37,7 +42,10 @@ class InvoiceController extends Controller
             'legal_name' => ['required', 'string', 'max:180'],
             'email' => ['nullable', 'email', 'max:180'],
             'metadata' => ['nullable', 'array'],
+            'auto_process' => ['sometimes', 'boolean'],
         ]);
+        $autoProcess = (bool) ($data['auto_process'] ?? false);
+        unset($data['auto_process']);
 
         $sale = Sale::findOrFail($data['sale_id']);
         $documentType = $data['document_type'] ?? '01';
@@ -62,26 +70,107 @@ class InvoiceController extends Controller
             'issued_at' => now(),
         ]);
 
-        return response()->json($this->xmlGenerator->generate($invoice), 201);
+        $invoice = $this->xmlGenerator->generate($invoice);
+
+        $activityLogger->log($request->user(), 'invoice.created', $invoice, [
+            'sale_id' => $invoice->sale_id,
+            'document_type' => $invoice->document_type,
+            'clave' => $invoice->clave,
+            'hacienda_status' => $invoice->hacienda_status,
+        ]);
+
+        if ($autoProcess) {
+            $invoice = $this->autoProcess($invoice, $request, $activityLogger);
+        }
+
+        return response()->json($invoice, 201);
     }
 
-    public function generateXml(Invoice $invoice)
+    public function generateXml(Request $request, Invoice $invoice, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        return $this->xmlGenerator->generate($invoice);
+        $accessControl->authorize($request->user(), 'settings.manage');
+
+        $invoice = $this->xmlGenerator->generate($invoice);
+        $activityLogger->log($request->user(), 'invoice.xml_generated', $invoice, ['clave' => $invoice->clave]);
+
+        return $invoice;
     }
 
-    public function sign(Invoice $invoice)
+    public function sign(Request $request, Invoice $invoice, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        return $this->xmlSigner->sign($invoice);
+        $accessControl->authorize($request->user(), 'settings.manage');
+
+        $invoice = $this->xmlSigner->sign($invoice);
+        $activityLogger->log($request->user(), 'invoice.signed', $invoice, ['clave' => $invoice->clave]);
+
+        return $invoice;
     }
 
-    public function submit(Invoice $invoice)
+    public function submit(Request $request, Invoice $invoice, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        return $this->apiClient->submit($invoice);
+        $accessControl->authorize($request->user(), 'settings.manage');
+
+        $invoice = $this->apiClient->submit($invoice);
+        $activityLogger->log($request->user(), 'invoice.submitted', $invoice, [
+            'clave' => $invoice->clave,
+            'hacienda_status' => $invoice->hacienda_status,
+        ]);
+
+        return $invoice;
     }
 
-    public function checkStatus(Invoice $invoice)
+    public function checkStatus(Request $request, Invoice $invoice, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        return $this->apiClient->checkStatus($invoice);
+        $accessControl->authorize($request->user(), 'settings.manage');
+
+        $invoice = $this->apiClient->checkStatus($invoice);
+        $activityLogger->log($request->user(), 'invoice.status_checked', $invoice, [
+            'clave' => $invoice->clave,
+            'hacienda_status' => $invoice->hacienda_status,
+        ]);
+
+        return $invoice;
+    }
+
+    private function autoProcess(Invoice $invoice, Request $request, ActivityLogger $activityLogger): Invoice
+    {
+        $steps = ['xml' => 'done'];
+
+        foreach ([
+            'sign' => fn (Invoice $current) => $this->xmlSigner->sign($current),
+            'submit' => fn (Invoice $current) => $this->apiClient->submit($current),
+            'status' => fn (Invoice $current) => $this->apiClient->checkStatus($current),
+        ] as $step => $handler) {
+            try {
+                $invoice = $handler($invoice);
+                $steps[$step] = 'done';
+                $activityLogger->log($request->user(), "invoice.{$step}_auto", $invoice, [
+                    'clave' => $invoice->clave,
+                    'hacienda_status' => $invoice->hacienda_status,
+                ]);
+            } catch (ValidationException $exception) {
+                $steps[$step] = 'skipped';
+                $invoice->update([
+                    'metadata' => [
+                        ...(array) $invoice->metadata,
+                        'auto_process' => [
+                            'steps' => $steps,
+                            'message' => collect($exception->errors())->flatten()->first(),
+                            'stopped_at' => $step,
+                        ],
+                    ],
+                ]);
+
+                $activityLogger->log($request->user(), 'invoice.auto_process_skipped', $invoice, [
+                    'clave' => $invoice->clave,
+                    'step' => $step,
+                    'message' => collect($exception->errors())->flatten()->first(),
+                ]);
+
+                break;
+            }
+        }
+
+        return $invoice->fresh(['sale', 'customer']);
     }
 }

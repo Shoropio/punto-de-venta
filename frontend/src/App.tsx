@@ -1005,7 +1005,7 @@ function App() {
 
     setLoading(true)
     try {
-      await api('/invoices', {
+      const invoice = await api<InvoiceRow>('/invoices', {
         method: 'POST',
         body: JSON.stringify({
           sale_id: invoicePromptSale.id,
@@ -1013,6 +1013,7 @@ function App() {
           tax_id: quickInvoiceTaxId,
           legal_name: quickInvoiceLegalName,
           email: quickInvoiceEmail || null,
+          auto_process: true,
         }),
       })
       setInvoicePromptSale(null)
@@ -1020,7 +1021,18 @@ function App() {
       setQuickInvoiceLegalName('')
       setQuickInvoiceEmail('')
       await loadOperations()
-      setMessage('Factura electronica registrada para Hacienda.')
+      const autoMessage = invoice.metadata?.auto_process?.message
+      const invoiceStatus = invoice.hacienda_status ?? invoice.status
+      const statusMessage = invoiceStatus === 'accepted'
+        ? 'Factura electronica aceptada por Hacienda.'
+        : invoiceStatus === 'submitted'
+          ? 'Factura electronica enviada a Hacienda.'
+          : invoiceStatus === 'signed'
+            ? 'Factura electronica firmada; envio pendiente.'
+            : autoMessage
+              ? `Factura electronica generada. ${autoMessage}`
+              : 'Factura electronica generada para Hacienda.'
+      setMessage(statusMessage)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible registrar factura electronica.')
     } finally {

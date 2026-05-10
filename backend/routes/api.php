@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\ActivityLogController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BarcodeController;
 use App\Http\Controllers\Api\BackupController;
@@ -46,6 +47,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/settings', [SettingController::class, 'index']);
     Route::post('/settings', [SettingController::class, 'upsert']);
+    Route::get('/activity-logs', [ActivityLogController::class, 'index']);
     Route::get('/hacienda-settings', [HaciendaSettingController::class, 'index']);
     Route::post('/hacienda-settings', [HaciendaSettingController::class, 'store']);
     Route::put('/hacienda-settings/{haciendaSetting}', [HaciendaSettingController::class, 'update']);

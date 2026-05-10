@@ -4,6 +4,8 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\HaciendaSetting;
+use App\Services\AccessControl;
+use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -18,22 +20,40 @@ class HaciendaSettingController extends Controller
             ->get();
     }
 
-    public function store(Request $request)
+    public function store(Request $request, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
+        $accessControl->authorize($request->user(), 'settings.manage');
+
         $data = $this->validatePayload($request);
 
-        return HaciendaSetting::updateOrCreate(
+        $setting = HaciendaSetting::updateOrCreate(
             [
                 'branch_id' => $data['branch_id'] ?? null,
                 'environment' => $data['environment'],
             ],
             $data,
         );
+
+        $activityLogger->log($request->user(), 'hacienda_setting.saved', $setting, [
+            'branch_id' => $setting->branch_id,
+            'environment' => $setting->environment,
+            'schema_version' => $setting->schema_version,
+            'is_active' => $setting->is_active,
+        ]);
+
+        return $setting;
     }
 
-    public function update(Request $request, HaciendaSetting $haciendaSetting)
+    public function update(Request $request, HaciendaSetting $haciendaSetting, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
+        $accessControl->authorize($request->user(), 'settings.manage');
+
+        $before = $haciendaSetting->only(['environment', 'schema_version', 'legal_name', 'identification_number', 'is_active']);
         $haciendaSetting->update($this->validatePayload($request));
+        $activityLogger->log($request->user(), 'hacienda_setting.updated', $haciendaSetting, [
+            'before' => $before,
+            'after' => $haciendaSetting->only(['environment', 'schema_version', 'legal_name', 'identification_number', 'is_active']),
+        ]);
 
         return $haciendaSetting->fresh();
     }

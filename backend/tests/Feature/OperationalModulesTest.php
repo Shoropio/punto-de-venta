@@ -4,11 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\Branch;
 use App\Models\CashRegister;
+use App\Models\CashMovement;
 use App\Models\CashSession;
 use App\Models\Customer;
 use App\Models\HaciendaSetting;
 use App\Models\Product;
 use App\Models\Promotion;
+use App\Models\Role;
 use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -73,6 +75,11 @@ class OperationalModulesTest extends TestCase
         ])->assertCreated()->assertJsonPath('type', 'deposit');
 
         $this->assertSame('150.00', $this->session->fresh()->expected_amount);
+        $this->assertDatabaseHas('activity_logs', [
+            'user_id' => $this->user->id,
+            'action' => 'cash_movement.created',
+            'subject_type' => CashMovement::class,
+        ]);
 
         $this->postJson('/api/cash-movements', [
             'cash_session_id' => $this->session->id,
@@ -82,6 +89,19 @@ class OperationalModulesTest extends TestCase
         ])->assertCreated()->assertJsonPath('type', 'withdrawal');
 
         $this->assertSame('125.00', $this->session->fresh()->expected_amount);
+    }
+
+    public function test_role_without_permission_cannot_run_restricted_action(): void
+    {
+        $role = Role::create(['name' => 'solo_lectura', 'display_name' => 'Solo lectura']);
+        $restrictedUser = User::factory()->create([
+            'branch_id' => $this->user->branch_id,
+            'role_id' => $role->id,
+        ]);
+
+        Sanctum::actingAs($restrictedUser);
+
+        $this->postJson('/api/backups')->assertForbidden();
     }
 
     public function test_cash_session_summary_returns_arqueo_totals(): void
@@ -297,6 +317,30 @@ class OperationalModulesTest extends TestCase
         $this->assertStringContainsString('<FacturaElectronica', $xml);
         $this->assertStringContainsString('<Clave>' . $response->json('clave') . '</Clave>', $xml);
         $this->assertStringContainsString('<NumeroConsecutivo>00100001010000000001</NumeroConsecutivo>', $xml);
+    }
+
+    public function test_invoice_auto_process_stops_cleanly_when_certificate_is_missing(): void
+    {
+        Storage::fake('local');
+        $sale = $this->sale();
+
+        $response = $this->postJson('/api/invoices', [
+            'sale_id' => $sale->id,
+            'tax_id' => '3101123456',
+            'legal_name' => 'Cliente Auto SRL',
+            'email' => 'auto@example.com',
+            'auto_process' => true,
+        ])->assertCreated()
+            ->assertJsonPath('status', 'xml_generated')
+            ->assertJsonPath('hacienda_status', 'xml_generated')
+            ->assertJsonPath('metadata.auto_process.stopped_at', 'sign');
+
+        Storage::disk('local')->assertExists($response->json('xml_path'));
+        $this->assertDatabaseHas('activity_logs', [
+            'user_id' => $this->user->id,
+            'action' => 'invoice.auto_process_skipped',
+            'subject_id' => $response->json('id'),
+        ]);
     }
 
     public function test_hacienda_xml_can_be_created_for_all_supported_document_types(): void
