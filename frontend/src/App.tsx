@@ -116,6 +116,8 @@ function App() {
   const [quickInvoiceLegalName, setQuickInvoiceLegalName] = useState('')
   const [quickInvoiceEmail, setQuickInvoiceEmail] = useState('')
   const [toasts, setToasts] = useState<ToastMessage[]>([])
+  const [discountDialogOpen, setDiscountDialogOpen] = useState(false)
+  const [customDiscountValue, setCustomDiscountValue] = useState('5')
   const [theme, setTheme] = useState<AppTheme>(() => (localStorage.getItem('pos_theme') === 'light' ? 'light' : 'dark'))
   const [isFullscreen, setIsFullscreen] = useState(Boolean(document.fullscreenElement))
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -139,7 +141,7 @@ function App() {
     const session = await api<CashSession | null>('/cash-sessions/current')
     setCurrentCashSession(session)
     setCashSession(Boolean(session), session?.id ?? null)
-    if (session) setCashClosingAmount(String(session.expected_amount ?? ''))
+    if (session) setCashClosingAmount('')
     return session
   }, [setCashSession])
 
@@ -385,7 +387,7 @@ function App() {
     try {
       const summary = await api<CashSessionSummary>(`/cash-sessions/${cashSessionId}/summary`)
       setCashClosingSummary(summary)
-      setCashClosingAmount(String(summary.expected_amount ?? currentCashSession?.expected_amount ?? ''))
+      setCashClosingAmount('')
       setCashClosingNotes('')
       setCashClosingDialogOpen(true)
     } catch (error) {
@@ -1142,8 +1144,19 @@ function App() {
       setMessage('Agrega productos antes de aplicar descuento.')
       return
     }
-    applyDiscountPercent(10)
+    setDiscountDialogOpen(true)
     setMessage('Descuento rapido de 10% aplicado a la venta.')
+  }
+
+  const confirmCustomDiscount = () => {
+    const value = Number(customDiscountValue)
+    if (Number.isNaN(value) || value < 0 || value > 100) {
+      handleBlockedAction('Ingresa un porcentaje de descuento valido (0-100).')
+      return
+    }
+    applyDiscountPercent(value)
+    setMessage(`Descuento de ${value}% aplicado a la venta.`)
+    setDiscountDialogOpen(false)
   }
 
   const saveCurrentSale = () => {
@@ -1157,8 +1170,9 @@ function App() {
   }
 
   const startNewSale = () => {
+    setQuery('')
     if (cart.length === 0) {
-      handleBlockedAction('No hay una venta activa para limpiar.')
+      handleBlockedAction('Venta lista para comenzar.')
       return
     }
 
@@ -1203,6 +1217,22 @@ function App() {
     setActiveModule('reports')
     setMessage('Selecciona una venta completada para devolverla.')
   }
+
+  useEffect(() => {
+    const normalized = query.trim()
+    if (!normalized || normalized.length < 3) return
+
+    // Auto-add if exact SKU or Barcode match (for scanners)
+    const exactMatch = productsSource.find(
+      (p) => p.sku?.toLowerCase() === normalized.toLowerCase() || p.barcode?.toLowerCase() === normalized.toLowerCase()
+    )
+
+    if (exactMatch) {
+      addItem(exactMatch)
+      setQuery('')
+      setMessage(`${exactMatch.name} agregado.`)
+    }
+  }, [addItem, productsSource, query])
 
   const setPosMessage = (value: string) => {
     setMessage(value)
@@ -1342,7 +1372,20 @@ function App() {
             <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] xl:w-[860px]">
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-2 text-slate-400" size={16} />
-                <Input ref={searchInputRef} className="h-9 pl-9" placeholder="Buscar por nombre, SKU o codigo de barras" value={query} onChange={(event) => setQuery(event.target.value)} />
+                <Input
+                  ref={searchInputRef}
+                  className="h-9 pl-9"
+                  placeholder="Buscar por nombre, SKU o codigo de barras"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' && products.length > 0) {
+                      addItem(products[0])
+                      setQuery('')
+                      setMessage(`${products[0].name} agregado.`)
+                    }
+                  }}
+                />
               </div>
               <Button className="h-9" variant="secondary" onClick={toggleTheme} title="Cambiar tema" aria-label="Cambiar tema">
                 {isDarkTheme ? <Sun size={18} /> : <Moon size={18} />}
@@ -1688,6 +1731,40 @@ function App() {
                   {loading ? <Loader2 className="animate-spin" size={18} /> : <ReceiptText size={18} />}
                   Emitir factura
                 </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+      {discountDialogOpen && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 print:hidden">
+          <Card className={isDarkTheme ? 'w-full max-w-sm border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'w-full max-w-sm p-5'}>
+            <div className="mb-4">
+              <p className={isDarkTheme ? 'text-sm font-semibold text-[#38bdf8]' : 'text-sm font-semibold text-[#0088cc]'}>Aplicar descuento</p>
+              <h2 className="text-xl font-bold">Porcentaje de descuento</h2>
+            </div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-4 gap-2">
+                {['5', '10', '15', '20'].map((val) => (
+                  <Button key={val} variant={customDiscountValue === val ? 'primary' : 'secondary'} onClick={() => setCustomDiscountValue(val)} className="h-10">
+                    {val}%
+                  </Button>
+                ))}
+              </div>
+              <Input
+                autoFocus
+                type="number"
+                placeholder="Otro %"
+                value={customDiscountValue}
+                onChange={(event) => setCustomDiscountValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') confirmCustomDiscount()
+                  if (event.key === 'Escape') setDiscountDialogOpen(false)
+                }}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="secondary" onClick={() => setDiscountDialogOpen(false)}>Cancelar</Button>
+                <Button onClick={confirmCustomDiscount}>Aplicar</Button>
               </div>
             </div>
           </Card>

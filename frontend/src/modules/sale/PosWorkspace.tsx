@@ -1,4 +1,4 @@
-import { Banknote, CreditCard, Lock, MessageSquare, Minus, MoreHorizontal, PackageSearch, Percent, Plus, ReceiptText, RotateCcw, Search, Trash2, UserRound, Users, Utensils, X } from 'lucide-react'
+import { Banknote, CreditCard, Lock, MessageSquare, Minus, MoreHorizontal, PackageSearch, Percent, Plus, ReceiptText, RotateCcw, Search, Trash2, UserRound, X } from 'lucide-react'
 import { currency } from '../../lib/utils'
 import type { PaymentMethod } from '../../types'
 import { type Product, usePosStore } from '../../store/usePosStore'
@@ -143,7 +143,7 @@ export function PosWorkspace({
             <div className="space-y-1 text-xs">
               <div className="flex justify-between"><span>Subtotal</span><span>{currency.format(subtotal)}</span></div>
               <div className="flex justify-between"><span>Descuentos</span><span>{currency.format(discount)}</span></div>
-              <div className="flex justify-between"><span>Impuestos</span><span>{currency.format(tax)}</span></div>
+              <div className="flex justify-between"><span>Impuestos (IVA 13%)</span><span>{currency.format(tax)}</span></div>
               <div className={isDarkTheme ? 'flex justify-between border-t border-[#555] pt-1.5 text-xl font-bold' : 'flex justify-between border-t border-stone-300 pt-1.5 text-xl font-bold'}><span>Total</span><span>{currency.format(total)}</span></div>
             </div>
           </div>
@@ -172,15 +172,15 @@ export function PosWorkspace({
 
         <div className="mt-2 grid grid-cols-4 gap-1 xl:mt-4">
           <PosAction icon={Banknote} label={cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'} onClick={onToggleCashSession} />
-          <PosAction icon={Utensils} label="Mesa" onClick={() => onMessage('Modo mesa preparado para consumo en sitio.')} />
-          <div className="hidden xl:block" />
-          <div className="hidden xl:block" />
           <PosAction icon={Percent} label="Descuento" shortcut="F2" onClick={onApplyDiscount} disabled={cart.length === 0} onBlocked={() => onBlocked('Agrega productos antes de aplicar descuento.')} />
-          <PosAction icon={MessageSquare} label="Comentario" onClick={() => onMessage('Comentario agregado a la orden actual.')} />
           <PosAction icon={UserRound} label="Cliente" onClick={onOpenCustomers} />
-          <PosAction icon={Users} label="Asignar" onClick={() => onMessage('Orden asignada al cajero activo.')} />
-          <PosAction icon={PackageSearch} label="Guardar" shortcut="F9" onClick={onSaveSale} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay articulos para guardar.')} />
           <PosAction icon={RotateCcw} label="Devolución" onClick={onOpenRefunds} />
+
+          <PosAction icon={MessageSquare} label="Nota" onClick={() => onMessage('Comentario agregado a la orden actual.')} />
+          <PosAction icon={PackageSearch} label="En espera" shortcut="F9" onClick={onSaveSale} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay articulos para guardar.')} />
+          <PosAction icon={MoreHorizontal} label="Recuperar" onClick={onRestoreSale} />
+          <PosAction icon={Lock} label="Bloquear" onClick={onLock} />
+
           <button
             className="col-span-2 h-[68px] border border-[#0088cc] bg-[#0088cc] text-base font-bold text-white hover:bg-[#0077b3] aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             aria-disabled={loading || !cashSessionOpen || cart.length === 0 || undefined}
@@ -195,7 +195,7 @@ export function PosWorkspace({
             <span className="block text-xl">F10</span>
             {loading ? 'Procesando...' : 'Pago'}
           </button>
-          <PosAction icon={Lock} label="Bloquear" onClick={onLock} />
+          
           <PosAction icon={CreditCard} label="Transferir" shortcut="F7" active={paymentMethod === 'transfer'} onClick={() => onSetPayment('transfer')} />
           <button
             className="h-[68px] border border-red-700 bg-red-700 text-[13px] font-semibold text-white hover:bg-red-600 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
@@ -211,7 +211,6 @@ export function PosWorkspace({
             <Trash2 className="mx-auto mb-1.5" size={22} />
             Anular orden
           </button>
-          <PosAction icon={MoreHorizontal} label="Mas" onClick={onRestoreSale} />
         </div>
       </aside>
     </div>
