@@ -26,6 +26,16 @@ export function AdminModule({
   onAssignRole: (userId: number, roleId: string) => void
   onTestHacienda: () => void
 }) {
+  const moduleLabels: Record<string, string> = {
+    pos: 'Punto de venta',
+    sales: 'Ventas',
+    cash: 'Caja',
+    inventory: 'Inventario',
+    reports: 'Reportes',
+    hacienda: 'Hacienda',
+    settings: 'Configuracion',
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid gap-3 xl:grid-cols-4">
@@ -60,15 +70,17 @@ export function AdminModule({
               <div className="grid gap-2 sm:grid-cols-2">
                 {permissions.map((permission) => {
                   const enabled = role.permissions.some((item) => item.id === permission.id)
+                  const label = permission.description ?? humanizePermission(permission.name)
                   return (
                     <button
                       key={permission.id}
                       className={enabled ? 'border border-[#0088cc] bg-[#0088cc] px-3 py-2 text-left text-xs text-white' : 'border border-slate-200 px-3 py-2 text-left text-xs hover:bg-slate-50 dark:border-[#4b4b4b] dark:hover:bg-[#303030]'}
                       onClick={() => onTogglePermission(role, permission)}
                       disabled={loading}
+                      title={permission.name}
                     >
-                      <span className="block font-semibold">{permission.name}</span>
-                      <span className={enabled ? 'text-white/75' : 'text-slate-500'}>{permission.description ?? permission.module}</span>
+                      <span className="block font-semibold">{label}</span>
+                      <span className={enabled ? 'text-white/75' : 'text-slate-500'}>{moduleLabels[permission.module] ?? permission.module}</span>
                     </button>
                   )
                 })}
@@ -118,6 +130,28 @@ export function AdminModule({
       </Card>
     </div>
   )
+}
+
+function humanizePermission(permission: string): string {
+  const labels: Record<string, string> = {
+    'pos.sell': 'Crear ventas',
+    'sales.cancel': 'Anular ventas',
+    'refunds.create': 'Registrar devoluciones',
+    'cash.open': 'Abrir caja',
+    'cash.close': 'Cerrar caja',
+    'cash.move': 'Depositos y retiros',
+    'inventory.manage': 'Gestionar inventario',
+    'products.delete': 'Eliminar productos',
+    'reports.view': 'Ver reportes',
+    'hacienda.manage': 'Gestionar Hacienda',
+    'backups.manage': 'Gestionar respaldos',
+    'settings.manage': 'Administrar configuracion',
+  }
+
+  return labels[permission] ?? permission
+    .split('.')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
