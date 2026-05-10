@@ -16,7 +16,10 @@ class AccessControl
             return;
         }
 
-        $allowed = $user->role->permissions->contains(fn ($rolePermission) => $rolePermission->name === $permission);
+        $fallback = str($permission)->before('.')->append('.manage')->toString();
+        $allowed = $user->role->permissions->contains(
+            fn ($rolePermission) => $rolePermission->name === $permission || $rolePermission->name === $fallback || $rolePermission->name === 'settings.manage',
+        );
 
         abort_unless($allowed, 403, 'No tienes permisos para ejecutar esta accion.');
     }

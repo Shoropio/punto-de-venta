@@ -27,8 +27,16 @@ class DatabaseSeeder extends Seeder
     {
         $permissions = collect([
             ['name' => 'pos.sell', 'module' => 'pos', 'description' => 'Crear ventas'],
+            ['name' => 'sales.cancel', 'module' => 'sales', 'description' => 'Anular ventas'],
+            ['name' => 'refunds.create', 'module' => 'sales', 'description' => 'Registrar devoluciones'],
+            ['name' => 'cash.open', 'module' => 'cash', 'description' => 'Abrir caja'],
+            ['name' => 'cash.close', 'module' => 'cash', 'description' => 'Cerrar caja'],
+            ['name' => 'cash.move', 'module' => 'cash', 'description' => 'Registrar depositos y retiros'],
             ['name' => 'inventory.manage', 'module' => 'inventory', 'description' => 'Gestionar inventario'],
+            ['name' => 'products.delete', 'module' => 'inventory', 'description' => 'Eliminar productos'],
             ['name' => 'reports.view', 'module' => 'reports', 'description' => 'Ver reportes'],
+            ['name' => 'hacienda.manage', 'module' => 'hacienda', 'description' => 'Gestionar Hacienda'],
+            ['name' => 'backups.manage', 'module' => 'settings', 'description' => 'Gestionar respaldos'],
             ['name' => 'settings.manage', 'module' => 'settings', 'description' => 'Administrar configuracion'],
         ])->map(fn ($permission) => Permission::firstOrCreate(['name' => $permission['name']], $permission));
 
@@ -37,8 +45,8 @@ class DatabaseSeeder extends Seeder
         $cashier = Role::firstOrCreate(['name' => 'cajero'], ['display_name' => 'Cajero']);
 
         $admin->permissions()->sync($permissions->pluck('id'));
-        $manager->permissions()->sync($permissions->whereIn('module', ['pos', 'inventory', 'reports'])->pluck('id'));
-        $cashier->permissions()->sync($permissions->where('module', 'pos')->pluck('id'));
+        $manager->permissions()->sync($permissions->whereIn('module', ['pos', 'sales', 'cash', 'inventory', 'reports'])->pluck('id'));
+        $cashier->permissions()->sync($permissions->whereIn('name', ['pos.sell', 'cash.open'])->pluck('id'));
 
         $branch = Branch::firstOrCreate(['code' => 'MAIN'], ['name' => 'Sucursal Principal']);
         CashRegister::firstOrCreate(['code' => 'CAJA-01'], ['branch_id' => $branch->id, 'name' => 'Caja 01']);

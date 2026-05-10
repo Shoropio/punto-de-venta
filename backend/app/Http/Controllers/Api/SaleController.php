@@ -15,12 +15,12 @@ class SaleController extends Controller
 {
     public function index(Request $request)
     {
-        return SaleResource::collection(Sale::with(['items', 'payments'])->latest()->paginate($request->integer('per_page', 20)));
+        return SaleResource::collection(Sale::with(['items', 'payments', 'customer'])->latest()->paginate($request->integer('per_page', 20)));
     }
 
     public function store(SaleRequest $request, SaleService $saleService, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'pos.sell');
+        $accessControl->authorize($request->user(), 'sales.cancel');
 
         $sale = $saleService->create($request->validated(), $request->user());
         $activityLogger->log($request->user(), 'sale.completed', $sale, [
@@ -34,7 +34,7 @@ class SaleController extends Controller
 
     public function show(Sale $sale)
     {
-        return new SaleResource($sale->load(['items', 'payments']));
+        return new SaleResource($sale->load(['items', 'payments', 'customer']));
     }
 
     public function cancel(Request $request, Sale $sale, AccessControl $accessControl, ActivityLogger $activityLogger)

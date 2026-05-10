@@ -7,6 +7,7 @@ use App\Http\Requests\CashSessionRequest;
 use App\Models\CashMovement;
 use App\Models\CashRegister;
 use App\Models\CashSession;
+use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Sale;
 use App\Services\AccessControl;
@@ -27,7 +28,7 @@ class CashSessionController extends Controller
 
     public function open(CashSessionRequest $request, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'pos.sell');
+        $accessControl->authorize($request->user(), 'cash.open');
 
         $existing = CashSession::where('user_id', $request->user()->id)
             ->where('status', 'open')
@@ -120,10 +121,21 @@ class CashSessionController extends Controller
 
     public function close(Request $request, CashSession $cashSession, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'pos.sell');
+        $accessControl->authorize($request->user(), 'cash.close');
 
         if ($cashSession->status === 'closed') {
             throw ValidationException::withMessages(['cash_session' => 'La caja ya esta cerrada.']);
+        }
+
+        $pendingFiscalDocuments = Invoice::query()
+            ->whereHas('sale', fn ($query) => $query->where('cash_session_id', $cashSession->id))
+            ->whereIn('hacienda_status', ['pending_xml', 'generated', 'xml_generated', 'signed', 'submitted', 'received', 'processing'])
+            ->count();
+
+        if ($pendingFiscalDocuments > 0) {
+            throw ValidationException::withMessages([
+                'hacienda' => "Hay {$pendingFiscalDocuments} comprobante(s) Hacienda pendientes antes de cerrar caja.",
+            ]);
         }
 
         $data = $request->validate([

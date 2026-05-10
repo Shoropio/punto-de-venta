@@ -23,7 +23,7 @@ class CashMovementController extends Controller
 
     public function store(Request $request, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'pos.sell');
+        $accessControl->authorize($request->user(), 'cash.move');
 
         $data = $request->validate([
             'cash_session_id' => ['required', 'exists:cash_sessions,id'],

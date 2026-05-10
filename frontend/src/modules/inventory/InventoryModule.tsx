@@ -3,7 +3,7 @@ import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
 import { currency } from '../../lib/utils'
-import type { NamedCatalog, ProductForm } from '../../types'
+import type { NamedCatalog, ProductForm, StockMovementRow } from '../../types'
 import type { Product } from '../../store/usePosStore'
 import { Metric } from '../../components/shared/Metric'
 import { CatalogCard } from '../../components/shared/CatalogCard'
@@ -11,6 +11,7 @@ import { SelectBox } from '../../components/shared/SelectBox'
 
 export function InventoryModule({
   products,
+  movements,
   form,
   loading,
   categories,
@@ -35,6 +36,7 @@ export function InventoryModule({
   onAdjust,
 }: {
   products: Product[]
+  movements: StockMovementRow[]
   form: ProductForm
   loading: boolean
   categories: NamedCatalog[]
@@ -132,6 +134,28 @@ export function InventoryModule({
               <Button aria-label={`Editar ${product.name}`} className="h-8 px-2" variant="ghost" onClick={() => onEdit(product)}><Edit3 size={14} /></Button>
               <Button aria-label={`Eliminar ${product.name}`} className="h-8 px-2" variant="ghost" onClick={() => onDelete(product)}><Trash2 size={14} /></Button>
             </span>
+          </div>
+        ))}
+      </Card>
+
+      <Card className="overflow-hidden">
+        <div className="grid grid-cols-[1fr_90px_90px_90px_160px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">
+          <span>Kardex reciente</span>
+          <span>Tipo</span>
+          <span>Cantidad</span>
+          <span>Saldo</span>
+          <span>Fecha</span>
+        </div>
+        {movements.map((movement) => (
+          <div key={movement.id} className="grid grid-cols-[1fr_90px_90px_90px_160px] gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+            <span>
+              <span className="block font-semibold">{movement.product?.name ?? 'Producto'}</span>
+              <span className="block text-xs text-slate-500">{movement.notes ?? 'Sin nota'}</span>
+            </span>
+            <span>{movement.type}</span>
+            <span>{Number(movement.quantity).toFixed(0)}</span>
+            <span>{Number(movement.stock_after).toFixed(0)}</span>
+            <span className="text-slate-500">{new Date(movement.created_at).toLocaleString()}</span>
           </div>
         ))}
       </Card>

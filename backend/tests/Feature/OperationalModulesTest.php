@@ -256,6 +256,14 @@ class OperationalModulesTest extends TestCase
         $this->postJson("/api/cash-sessions/{$session['id']}/close", [
             'closing_amount' => 50226,
             'notes' => 'Cierre E2E',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['hacienda']);
+
+        \App\Models\Invoice::findOrFail($invoice['id'])->update(['hacienda_status' => 'accepted', 'status' => 'accepted']);
+
+        $this->postJson("/api/cash-sessions/{$session['id']}/close", [
+            'closing_amount' => 50226,
+            'notes' => 'Cierre E2E aceptado',
         ])->assertOk()
             ->assertJsonPath('status', 'closed')
             ->assertJsonPath('difference_amount', '0.00');

@@ -23,7 +23,7 @@ class RefundController extends Controller
 
     public function store(Request $request, StockService $stockService, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'pos.sell');
+        $accessControl->authorize($request->user(), 'refunds.create');
 
         $data = $request->validate([
             'sale_id' => ['required', 'exists:sales,id'],

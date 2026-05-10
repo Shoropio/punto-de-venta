@@ -37,7 +37,7 @@ class ProductController extends Controller
 
     public function store(ProductRequest $request, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'inventory.manage');
+        $accessControl->authorize($request->user(), 'products.delete');
 
         $data = $request->validated();
         $data['sku'] = ($data['sku'] ?? null) ?: $this->generateSku();

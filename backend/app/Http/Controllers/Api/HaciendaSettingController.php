@@ -24,7 +24,7 @@ class HaciendaSettingController extends Controller
 
     public function store(Request $request, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'settings.manage');
+        $accessControl->authorize($request->user(), 'hacienda.manage');
 
         $data = $this->validatePayload($request);
 
@@ -48,7 +48,7 @@ class HaciendaSettingController extends Controller
 
     public function update(Request $request, HaciendaSetting $haciendaSetting, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'settings.manage');
+        $accessControl->authorize($request->user(), 'hacienda.manage');
 
         $before = $haciendaSetting->only(['environment', 'schema_version', 'legal_name', 'identification_number', 'is_active']);
         $haciendaSetting->update($this->validatePayload($request));
@@ -62,7 +62,7 @@ class HaciendaSettingController extends Controller
 
     public function testConnection(Request $request, HaciendaSetting $haciendaSetting, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'settings.manage');
+        $accessControl->authorize($request->user(), 'hacienda.manage');
 
         $checks = [
             'configuracion_activa' => $haciendaSetting->is_active,

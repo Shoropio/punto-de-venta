@@ -24,7 +24,7 @@ import { getToastTone, roundMoney } from './lib/pos-utils'
 import { emptyProductForm, mapProduct, type ApiProduct, type ProductForm, type ProductIdentifiers } from './types/product'
 import type { Product } from './store/usePosStore'
 import { usePosStore } from './store/usePosStore'
-import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type ActivityLogRow, type AdminUserRow, type AppTheme, type AuthResponse, type BackupListResponse, type BackupRow, type BackupSchedule, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CashSessionSummary, type CreditPaymentRow, type Customer, type CustomerForm, type DashboardSummary, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PermissionRow, type PromotionRow, type Refund, type RoleRow, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type ToastMessage, type TopProduct } from './types'
+import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type ActivityLogRow, type AdminUserRow, type AppTheme, type AuthResponse, type BackupListResponse, type BackupRow, type BackupSchedule, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CashSessionSummary, type CreditPaymentRow, type Customer, type CustomerForm, type DashboardSummary, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PermissionRow, type PromotionRow, type Refund, type RoleRow, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type StockMovementRow, type ToastMessage, type TopProduct } from './types'
 
 const HELD_SALE_KEY = 'pos_held_sale'
 const cashDenominations = [20000, 10000, 5000, 2000, 1000, 500, 100, 50, 25, 10, 5] as const
@@ -74,6 +74,7 @@ function App() {
   const [settings, setSettings] = useState<SettingRow[]>([])
   const [haciendaSetting, setHaciendaSetting] = useState<HaciendaSettingRow>(emptyHaciendaSetting)
   const [cashMovements, setCashMovements] = useState<CashMovement[]>([])
+  const [stockMovements, setStockMovements] = useState<StockMovementRow[]>([])
   const [cashRegisters, setCashRegisters] = useState<CashRegister[]>([])
   const [currentCashSession, setCurrentCashSession] = useState<CashSession | null>(null)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodRow[]>([])
@@ -231,8 +232,9 @@ function App() {
   }, [])
 
   const loadOperations = useCallback(async () => {
-    const [cashResponse, registerResponse, methodResponse, promotionResponse, invoiceResponse, creditResponse, backupResponse] = await Promise.all([
+    const [cashResponse, stockResponse, registerResponse, methodResponse, promotionResponse, invoiceResponse, creditResponse, backupResponse] = await Promise.all([
       api<Paginated<CashMovement>>('/cash-movements?per_page=20'),
+      api<Paginated<StockMovementRow>>('/stock-movements?per_page=20'),
       api<CashRegister[]>('/cash-registers'),
       api<PaymentMethodRow[]>('/payment-methods'),
       api<Paginated<PromotionRow>>('/promotions?per_page=20'),
@@ -241,6 +243,7 @@ function App() {
       api<BackupListResponse>('/backups'),
     ])
     setCashMovements(cashResponse.data)
+    setStockMovements(stockResponse.data)
     setCashRegisters(registerResponse)
     setCashOpeningForm((current) => ({
       ...current,
@@ -786,6 +789,20 @@ function App() {
         }
       },
     })
+  }
+
+  const reprintSale = async (sale: SaleListItem) => {
+    setLoading(true)
+    try {
+      const response = await api<SaleResponse>(`/sales/${sale.id}`)
+      setLastReceipt(response.data)
+      setMessage(`Copia de ${sale.folio} lista para imprimir.`)
+      window.setTimeout(() => window.print(), 100)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible reimprimir la venta.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const createCatalogItem = async (kind: 'category' | 'brand' | 'supplier') => {
@@ -1694,6 +1711,7 @@ function App() {
                 {activeModule === 'inventory' && (
                   <InventoryModule
                     products={products}
+                    movements={stockMovements}
                     form={productForm}
                     loading={loading}
                     categories={categories}
@@ -1740,6 +1758,7 @@ function App() {
                     refunds={refunds}
                     loading={loading}
                     onRefund={refundSale}
+                    onReprint={reprintSale}
                   />
                 )}
 

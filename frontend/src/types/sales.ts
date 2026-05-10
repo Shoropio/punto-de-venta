@@ -54,3 +54,14 @@ export type CashMovement = {
   reference?: string | null
   created_at: string
 }
+
+export type StockMovementRow = {
+  id: number
+  type: string
+  quantity: string
+  stock_before: string
+  stock_after: string
+  notes?: string | null
+  created_at: string
+  product?: { id: number; name: string; sku?: string } | null
+}

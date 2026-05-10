@@ -88,7 +88,7 @@ class InvoiceController extends Controller
 
     public function generateXml(Request $request, Invoice $invoice, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'settings.manage');
+        $accessControl->authorize($request->user(), 'hacienda.manage');
 
         $invoice = $this->xmlGenerator->generate($invoice);
         $activityLogger->log($request->user(), 'invoice.xml_generated', $invoice, ['clave' => $invoice->clave]);
@@ -98,7 +98,7 @@ class InvoiceController extends Controller
 
     public function sign(Request $request, Invoice $invoice, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'settings.manage');
+        $accessControl->authorize($request->user(), 'hacienda.manage');
 
         $invoice = $this->xmlSigner->sign($invoice);
         $activityLogger->log($request->user(), 'invoice.signed', $invoice, ['clave' => $invoice->clave]);
@@ -108,7 +108,7 @@ class InvoiceController extends Controller
 
     public function submit(Request $request, Invoice $invoice, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'settings.manage');
+        $accessControl->authorize($request->user(), 'hacienda.manage');
 
         $invoice = $this->apiClient->submit($invoice);
         $activityLogger->log($request->user(), 'invoice.submitted', $invoice, [
@@ -121,7 +121,7 @@ class InvoiceController extends Controller
 
     public function checkStatus(Request $request, Invoice $invoice, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'settings.manage');
+        $accessControl->authorize($request->user(), 'hacienda.manage');
 
         $invoice = $this->apiClient->checkStatus($invoice);
         $activityLogger->log($request->user(), 'invoice.status_checked', $invoice, [
