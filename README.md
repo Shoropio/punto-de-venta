@@ -1,6 +1,6 @@
 <div align="center">
 
-![Shoropio Banner](shoropio_banner_1778371120823.png)
+![POS Profesional](pos_banner.png)
 
 # 🚀 POS Profesional
 ### *Sistema de punto de venta con frontend React + TypeScript y backend Laravel + Sanctum.*
