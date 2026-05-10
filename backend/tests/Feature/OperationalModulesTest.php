@@ -168,7 +168,20 @@ class OperationalModulesTest extends TestCase
 
         $this->getJson('/api/backups')
             ->assertOk()
+            ->assertJsonStructure(['data', 'schedule'])
             ->assertJsonFragment(['name' => $backup]);
+
+        $this->postJson("/api/backups/{$backup}/verify")
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('has_database', true);
+
+        $this->postJson('/api/backups/schedule', [
+            'enabled' => true,
+            'frequency' => 'daily',
+            'time' => '02:00',
+            'retention' => 30,
+        ])->assertOk()->assertJsonPath('ok', true);
 
         $this->deleteJson("/api/backups/{$backup}")
             ->assertNoContent();
@@ -176,6 +189,76 @@ class OperationalModulesTest extends TestCase
         $this->getJson('/api/backups')
             ->assertOk()
             ->assertJsonMissing(['name' => $backup]);
+    }
+
+    public function test_admin_dashboard_roles_and_audit_are_available(): void
+    {
+        $this->seed();
+
+        $this->getJson('/api/dashboard')
+            ->assertOk()
+            ->assertJsonStructure(['sales_today', 'gross_today', 'open_cash_sessions', 'low_stock', 'pending_hacienda']);
+
+        $roles = $this->getJson('/api/admin/roles')
+            ->assertOk()
+            ->json();
+
+        $permission = $this->getJson('/api/admin/permissions')
+            ->assertOk()
+            ->json('0');
+
+        $this->putJson('/api/admin/roles/' . $roles[0]['id'], [
+            'permissions' => [$permission['id']],
+        ])->assertOk()
+            ->assertJsonPath('permissions.0.id', $permission['id']);
+
+        $this->getJson('/api/activity-logs')
+            ->assertOk()
+            ->assertJsonStructure(['data']);
+    }
+
+    public function test_end_to_end_pos_day_flow_open_sell_invoice_and_close(): void
+    {
+        Storage::fake('local');
+        $this->session->update(['status' => 'closed', 'closed_at' => now()]);
+        $register = CashRegister::create(['branch_id' => $this->user->branch_id, 'name' => 'Caja E2E', 'code' => 'E2E']);
+        $product = $this->product(['sale_price' => 100, 'tax_rate' => 13, 'stock' => 10]);
+
+        $session = $this->postJson('/api/cash-sessions/open', [
+            'cash_register_id' => $register->id,
+            'opening_amount' => 50000,
+            'shift' => 'Mañana',
+            'supervisor_name' => 'Supervisor E2E',
+        ])->assertCreated()
+            ->assertJsonPath('status', 'open')
+            ->json();
+
+        $sale = $this->postJson('/api/sales', [
+            'cash_session_id' => $session['id'],
+            'items' => [['product_id' => $product->id, 'quantity' => 2]],
+            'payments' => [['method' => 'cash', 'amount' => 226]],
+        ])->assertCreated()
+            ->assertJsonPath('data.total', '226.00')
+            ->json('data');
+
+        $invoice = $this->postJson('/api/invoices', [
+            'sale_id' => $sale['id'],
+            'tax_id' => '3101123456',
+            'legal_name' => 'Cliente E2E SRL',
+            'email' => 'e2e@example.com',
+            'auto_process' => true,
+        ])->assertCreated()
+            ->assertJsonPath('hacienda_status', 'xml_generated')
+            ->json();
+
+        Storage::disk('local')->assertExists($invoice['xml_path']);
+
+        $this->postJson("/api/cash-sessions/{$session['id']}/close", [
+            'closing_amount' => 50226,
+            'notes' => 'Cierre E2E',
+        ])->assertOk()
+            ->assertJsonPath('status', 'closed')
+            ->assertJsonPath('difference_amount', '0.00');
     }
 
     public function test_payment_methods_can_be_created_and_updated(): void

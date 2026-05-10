@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\HaciendaSetting;
 use App\Services\AccessControl;
 use App\Services\ActivityLogger;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -56,6 +58,50 @@ class HaciendaSettingController extends Controller
         ]);
 
         return $haciendaSetting->fresh();
+    }
+
+    public function testConnection(Request $request, HaciendaSetting $haciendaSetting, AccessControl $accessControl, ActivityLogger $activityLogger)
+    {
+        $accessControl->authorize($request->user(), 'settings.manage');
+
+        $checks = [
+            'configuracion_activa' => $haciendaSetting->is_active,
+            'certificado' => (bool) $haciendaSetting->certificate_path && (
+                Storage::disk('local')->exists($haciendaSetting->certificate_path) || file_exists($haciendaSetting->certificate_path)
+            ),
+            'pin_certificado' => (bool) $haciendaSetting->certificate_pin,
+            'credenciales_atv' => (bool) $haciendaSetting->api_username && (bool) $haciendaSetting->api_password,
+            'actividad_economica' => strlen((string) $haciendaSetting->economic_activity_code) === 6,
+            'sucursal_terminal' => strlen((string) $haciendaSetting->branch_code) === 3 && strlen((string) $haciendaSetting->terminal_code) === 5,
+        ];
+
+        $tokenStatus = 'not_checked';
+        if ($checks['credenciales_atv']) {
+            $response = Http::asForm()
+                ->acceptJson()
+                ->timeout(10)
+                ->post(config('services.hacienda.token_url'), [
+                    'grant_type' => 'password',
+                    'client_id' => $haciendaSetting->environment === 'production'
+                        ? config('services.hacienda.production_client_id')
+                        : config('services.hacienda.staging_client_id'),
+                    'username' => $haciendaSetting->api_username,
+                    'password' => $haciendaSetting->api_password,
+                ]);
+
+            $tokenStatus = $response->successful() ? 'ok' : 'failed';
+        }
+
+        $result = [
+            'ok' => ! in_array(false, $checks, true) && $tokenStatus !== 'failed',
+            'environment' => $haciendaSetting->environment,
+            'checks' => $checks,
+            'token_status' => $tokenStatus,
+        ];
+
+        $activityLogger->log($request->user(), 'hacienda_setting.connection_tested', $haciendaSetting, $result);
+
+        return $result;
     }
 
     private function validatePayload(Request $request): array

@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\ActivityLogController;
+use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BarcodeController;
 use App\Http\Controllers\Api\BackupController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\Api\CashMovementController;
 use App\Http\Controllers\Api\CashSessionController;
 use App\Http\Controllers\Api\CatalogController;
 use App\Http\Controllers\Api\CreditPaymentController;
+use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\HaciendaSettingController;
 use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\InventoryController;
@@ -26,6 +28,13 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => $request->user()->load(['role.permissions', 'branch']));
     Route::post('/auth/logout', [AuthController::class, 'logout']);
+    Route::get('/dashboard', [DashboardController::class, 'index']);
+
+    Route::get('/admin/roles', [AdminController::class, 'roles']);
+    Route::put('/admin/roles/{role}', [AdminController::class, 'updateRole']);
+    Route::get('/admin/permissions', [AdminController::class, 'permissions']);
+    Route::get('/admin/users', [AdminController::class, 'users']);
+    Route::put('/admin/users/{user}/role', [AdminController::class, 'assignUserRole']);
 
     Route::get('/products/identifiers', [ProductController::class, 'identifiers']);
     Route::apiResource('products', ProductController::class);
@@ -51,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/hacienda-settings', [HaciendaSettingController::class, 'index']);
     Route::post('/hacienda-settings', [HaciendaSettingController::class, 'store']);
     Route::put('/hacienda-settings/{haciendaSetting}', [HaciendaSettingController::class, 'update']);
+    Route::post('/hacienda-settings/{haciendaSetting}/test', [HaciendaSettingController::class, 'testConnection']);
 
     Route::get('/payment-methods', [PaymentMethodController::class, 'index']);
     Route::post('/payment-methods', [PaymentMethodController::class, 'store']);
@@ -97,6 +107,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/backups', [BackupController::class, 'index']);
     Route::post('/backups', [BackupController::class, 'store']);
+    Route::post('/backups/schedule', [BackupController::class, 'schedule']);
     Route::get('/backups/{backup}', [BackupController::class, 'download']);
+    Route::post('/backups/{backup}/verify', [BackupController::class, 'verify']);
     Route::delete('/backups/{backup}', [BackupController::class, 'destroy']);
 });

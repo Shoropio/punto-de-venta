@@ -2,6 +2,7 @@ import type { BadgeDollarSign } from 'lucide-react'
 
 export type ModuleKey =
   | 'sale'
+  | 'dashboard'
   | 'inventory'
   | 'customers'
   | 'reports'
@@ -14,6 +15,7 @@ export type ModuleKey =
   | 'printer'
   | 'backups'
   | 'settings'
+  | 'admin'
 
 export type AppTheme = 'dark' | 'light'
 export type ToastTone = 'success' | 'error' | 'info'
@@ -67,6 +69,11 @@ export type BackupRow = {
   name: string
   size: number
   created_at: string
+}
+
+export type BackupListResponse = {
+  data: BackupRow[]
+  schedule?: Record<string, unknown>
 }
 
 export type CashOpeningForm = {

@@ -43,6 +43,7 @@ class CashSessionController extends Controller
         $data['opened_at'] = now();
         $data['supervisor_confirmed_at'] = now();
         $data['expected_amount'] = $data['opening_amount'];
+        $data['status'] = 'open';
 
         $session = CashSession::create($data)->load(['cashRegister', 'user']);
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Archive, BadgeDollarSign, Banknote, Barcode, BarChart3, Boxes, CreditCard, Loader2, LogOut, Maximize2, Minimize2, Moon, Printer, ReceiptText, Search, Settings, ShieldCheck, Sun, Tags, Users, WalletCards } from 'lucide-react'
+import { Archive, BadgeDollarSign, Banknote, Barcode, BarChart3, Boxes, CreditCard, LayoutDashboard, Loader2, LogOut, Maximize2, Minimize2, Moon, Printer, ReceiptText, Search, Settings, ShieldCheck, Sun, Tags, UserCog, Users, WalletCards } from 'lucide-react'
 import { Button } from './components/ui/button'
 import { Card } from './components/ui/card'
 import { Input } from './components/ui/input'
@@ -17,13 +17,14 @@ import { BarcodesModule } from './modules/barcodes'
 import { PrinterModule } from './modules/printer'
 import { SettingsModule } from './modules/settings'
 import { BackupsModule } from './modules/backups'
+import { AdminModule } from './modules/admin'
 import { api, API_URL } from './lib/api'
 import { configureCurrency, currency } from './lib/utils'
 import { getToastTone, roundMoney } from './lib/pos-utils'
 import { emptyProductForm, mapProduct, type ApiProduct, type ProductForm, type ProductIdentifiers } from './types/product'
 import type { Product } from './store/usePosStore'
 import { usePosStore } from './store/usePosStore'
-import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type AppTheme, type AuthResponse, type BackupRow, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CashSessionSummary, type CreditPaymentRow, type Customer, type CustomerForm, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PromotionRow, type Refund, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type ToastMessage, type TopProduct } from './types'
+import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type ActivityLogRow, type AdminUserRow, type AppTheme, type AuthResponse, type BackupListResponse, type BackupRow, type BackupSchedule, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CashSessionSummary, type CreditPaymentRow, type Customer, type CustomerForm, type DashboardSummary, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PermissionRow, type PromotionRow, type Refund, type RoleRow, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type ToastMessage, type TopProduct } from './types'
 
 const HELD_SALE_KEY = 'pos_held_sale'
 const cashDenominations = [20000, 10000, 5000, 2000, 1000, 500, 100, 50, 25, 10, 5] as const
@@ -37,6 +38,7 @@ type ConfirmAction = {
 
 const nav: NavItem[] = [
   { key: 'sale', label: 'Venta', icon: BadgeDollarSign },
+  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { key: 'inventory', label: 'Inventario', icon: Boxes },
   { key: 'customers', label: 'Clientes', icon: Users },
   { key: 'reports', label: 'Reportes', icon: BarChart3 },
@@ -49,6 +51,7 @@ const nav: NavItem[] = [
   { key: 'printer', label: 'Impresora', icon: Printer },
   { key: 'backups', label: 'Respaldos', icon: Archive },
   { key: 'settings', label: 'Configuración', icon: Settings },
+  { key: 'admin', label: 'Admin', icon: UserCog },
 ]
 
 function App() {
@@ -77,7 +80,13 @@ function App() {
   const [promotions, setPromotions] = useState<PromotionRow[]>([])
   const [invoices, setInvoices] = useState<InvoiceRow[]>([])
   const [backups, setBackups] = useState<BackupRow[]>([])
+  const [backupSchedule, setBackupSchedule] = useState<BackupSchedule>({})
   const [creditPayments, setCreditPayments] = useState<CreditPaymentRow[]>([])
+  const [dashboard, setDashboard] = useState<DashboardSummary | null>(null)
+  const [roles, setRoles] = useState<RoleRow[]>([])
+  const [permissions, setPermissions] = useState<PermissionRow[]>([])
+  const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([])
+  const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([])
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm)
   const [customerForm, setCustomerForm] = useState<CustomerForm>(emptyCustomerForm)
   const [branchForm, setBranchForm] = useState<BranchForm>(emptyBranchForm)
@@ -229,7 +238,7 @@ function App() {
       api<Paginated<PromotionRow>>('/promotions?per_page=20'),
       api<Paginated<InvoiceRow>>('/invoices?per_page=20'),
       api<Paginated<CreditPaymentRow>>('/credit-payments?per_page=20'),
-      api<BackupRow[]>('/backups'),
+      api<BackupListResponse>('/backups'),
     ])
     setCashMovements(cashResponse.data)
     setCashRegisters(registerResponse)
@@ -240,8 +249,24 @@ function App() {
     setPaymentMethods(methodResponse)
     setPromotions(promotionResponse.data)
     setInvoices(invoiceResponse.data)
-    setBackups(backupResponse)
+    setBackups(backupResponse.data)
+    setBackupSchedule(backupResponse.schedule ?? {})
     setCreditPayments(creditResponse.data)
+  }, [])
+
+  const loadAdmin = useCallback(async () => {
+    const [dashboardResponse, rolesResponse, permissionsResponse, usersResponse, logsResponse] = await Promise.all([
+      api<DashboardSummary>('/dashboard'),
+      api<RoleRow[]>('/admin/roles'),
+      api<PermissionRow[]>('/admin/permissions'),
+      api<AdminUserRow[]>('/admin/users'),
+      api<Paginated<ActivityLogRow>>('/activity-logs?per_page=30'),
+    ])
+    setDashboard(dashboardResponse)
+    setRoles(rolesResponse)
+    setPermissions(permissionsResponse)
+    setAdminUsers(usersResponse)
+    setActivityLogs(logsResponse.data)
   }, [])
 
   const refreshAll = useCallback(async () => {
@@ -250,9 +275,10 @@ function App() {
     void loadReports().catch(() => undefined)
     void loadSettings().catch(() => undefined)
     void loadOperations().catch(() => undefined)
+    void loadAdmin().catch(() => undefined)
     setApiOnline(true)
     setMessage(session ? 'API conectada. Caja abierta y lista para vender.' : 'API conectada. Abre caja para comenzar.')
-  }, [loadCustomers, loadOperations, loadProducts, loadReports, loadSession, loadSettings])
+  }, [loadAdmin, loadCustomers, loadOperations, loadProducts, loadReports, loadSession, loadSettings])
 
   useEffect(() => {
     localStorage.setItem('pos_theme', theme)
@@ -1013,6 +1039,31 @@ function App() {
     })
   }
 
+  const verifyBackup = async (backup: BackupRow) => {
+    setLoading(true)
+    try {
+      const result = await api<{ ok: boolean; manifest?: { created_at?: string } | null }>(`/backups/${backup.name}/verify`, { method: 'POST' })
+      setMessage(result.ok ? `Respaldo verificado: ${backup.name}.` : `El respaldo ${backup.name} requiere revision.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible verificar el respaldo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveBackupSchedule = async (schedule: { enabled: boolean; frequency: 'daily' | 'weekly'; time: string; retention: number }) => {
+    setLoading(true)
+    try {
+      await api('/backups/schedule', { method: 'POST', body: JSON.stringify(schedule) })
+      await loadOperations()
+      setMessage('Programacion de respaldos guardada.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible programar respaldos.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const createPromotion = async () => {
     if (!promotionName.trim() || !promotionCode.trim() || !promotionValue) {
       setMessage('Captura nombre, codigo y descuento de la promocion.')
@@ -1138,6 +1189,56 @@ function App() {
       setMessage('Configuracion Hacienda guardada.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible guardar Hacienda.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const testHaciendaConnection = async () => {
+    if (!haciendaSetting.id) {
+      handleBlockedAction('Guarda la configuracion Hacienda antes de probar conexion.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      const result = await api<{ ok: boolean; token_status: string; checks: Record<string, boolean> }>(`/hacienda-settings/${haciendaSetting.id}/test`, { method: 'POST' })
+      const failed = Object.entries(result.checks).filter(([, ok]) => !ok).map(([key]) => key.replaceAll('_', ' '))
+      setMessage(result.ok ? 'Conexion Hacienda validada correctamente.' : `Hacienda requiere atencion: ${failed.join(', ') || result.token_status}.`)
+      await loadAdmin()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible probar Hacienda.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggleRolePermission = async (role: RoleRow, permission: PermissionRow) => {
+    const currentIds = role.permissions.map((item) => item.id)
+    const nextIds = currentIds.includes(permission.id)
+      ? currentIds.filter((id) => id !== permission.id)
+      : [...currentIds, permission.id]
+
+    setLoading(true)
+    try {
+      await api(`/admin/roles/${role.id}`, { method: 'PUT', body: JSON.stringify({ permissions: nextIds }) })
+      await loadAdmin()
+      setMessage(`Permisos de ${role.display_name} actualizados.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible actualizar permisos.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const assignUserRole = async (userId: number, roleId: string) => {
+    setLoading(true)
+    try {
+      await api(`/admin/users/${userId}/role`, { method: 'PUT', body: JSON.stringify({ role_id: roleId ? Number(roleId) : null }) })
+      await loadAdmin()
+      setMessage('Rol de usuario actualizado.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible actualizar el usuario.')
     } finally {
       setLoading(false)
     }
@@ -1576,6 +1677,20 @@ function App() {
               />
 
               <section className="min-w-0">
+                {activeModule === 'dashboard' && (
+                  <AdminModule
+                    dashboard={dashboard}
+                    roles={roles}
+                    permissions={permissions}
+                    users={adminUsers}
+                    logs={activityLogs}
+                    loading={loading}
+                    onTogglePermission={toggleRolePermission}
+                    onAssignRole={assignUserRole}
+                    onTestHacienda={testHaciendaConnection}
+                  />
+                )}
+
                 {activeModule === 'inventory' && (
                   <InventoryModule
                     products={products}
@@ -1747,10 +1862,13 @@ function App() {
                 {activeModule === 'backups' && (
                   <BackupsModule
                     backups={backups}
+                    schedule={backupSchedule}
                     loading={loading}
                     onCreate={createBackup}
                     onDownload={downloadBackup}
+                    onVerify={verifyBackup}
                     onDelete={deleteBackup}
+                    onSchedule={saveBackupSchedule}
                   />
                 )}
 
@@ -1777,6 +1895,20 @@ function App() {
                     onHaciendaChange={setHaciendaSetting}
                     onSaveHacienda={saveHaciendaSetting}
                     onPrint={printReceipt}
+                  />
+                )}
+
+                {activeModule === 'admin' && (
+                  <AdminModule
+                    dashboard={dashboard}
+                    roles={roles}
+                    permissions={permissions}
+                    users={adminUsers}
+                    logs={activityLogs}
+                    loading={loading}
+                    onTogglePermission={toggleRolePermission}
+                    onAssignRole={assignUserRole}
+                    onTestHacienda={testHaciendaConnection}
                   />
                 )}
               </section>

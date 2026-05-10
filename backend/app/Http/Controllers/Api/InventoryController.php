@@ -16,7 +16,10 @@ class InventoryController extends Controller
 {
     public function movements(Request $request)
     {
-        return StockMovement::with('product')->latest()->paginate($request->integer('per_page', 30));
+        return StockMovement::with('product')
+            ->when($request->integer('product_id'), fn ($query, $productId) => $query->where('product_id', $productId))
+            ->latest()
+            ->paginate($request->integer('per_page', 30));
     }
 
     public function move(StockMovementRequest $request, StockService $stockService, AccessControl $accessControl, ActivityLogger $activityLogger)

@@ -20,6 +20,7 @@ class SaleResource extends JsonResource
             'change_total' => $this->change_total,
             'status' => $this->status,
             'sold_at' => $this->sold_at,
+            'customer' => $this->whenLoaded('customer'),
             'items' => $this->whenLoaded('items'),
             'payments' => $this->whenLoaded('payments'),
         ];

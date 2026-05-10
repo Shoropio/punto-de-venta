@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Setting;
 use App\Services\AccessControl;
 use App\Services\ActivityLogger;
 use Illuminate\Http\Request;
@@ -15,10 +16,15 @@ class BackupController extends Controller
 {
     public function index()
     {
-        return collect(File::glob($this->backupDirectory() . DIRECTORY_SEPARATOR . '*.zip'))
+        $backups = collect(File::glob($this->backupDirectory() . DIRECTORY_SEPARATOR . '*.zip'))
             ->map(fn (string $path) => $this->backupRow($path))
             ->sortByDesc('created_at')
             ->values();
+
+        return [
+            'schedule' => Setting::where('group', 'backups')->get()->pluck('value', 'key'),
+            'data' => $backups,
+        ];
     }
 
     public function store(Request $request, AccessControl $accessControl, ActivityLogger $activityLogger)
@@ -55,6 +61,51 @@ class BackupController extends Controller
         $path = $this->resolveBackup($backup);
 
         return response()->download($path);
+    }
+
+    public function verify(Request $request, string $backup, AccessControl $accessControl)
+    {
+        $accessControl->authorize($request->user(), 'settings.manage');
+
+        $path = $this->resolveBackup($backup);
+        $zip = new ZipArchive();
+
+        if ($zip->open($path) !== true) {
+            abort(422, 'El respaldo no se pudo abrir.');
+        }
+
+        $manifest = $zip->getFromName('manifest.json');
+        $database = $zip->getFromName('database.json');
+        $zip->close();
+
+        return [
+            'ok' => (bool) $manifest && (bool) $database && json_validate($manifest) && json_validate($database),
+            'manifest' => $manifest ? json_decode($manifest, true) : null,
+            'has_database' => (bool) $database,
+        ];
+    }
+
+    public function schedule(Request $request, AccessControl $accessControl, ActivityLogger $activityLogger)
+    {
+        $accessControl->authorize($request->user(), 'settings.manage');
+
+        $data = $request->validate([
+            'enabled' => ['required', 'boolean'],
+            'frequency' => ['required', 'in:daily,weekly'],
+            'time' => ['required', 'date_format:H:i'],
+            'retention' => ['required', 'integer', 'min:1', 'max:365'],
+        ]);
+
+        foreach ($data as $key => $value) {
+            Setting::updateOrCreate(
+                ['branch_id' => null, 'key' => "backup_{$key}"],
+                ['group' => 'backups', 'value' => $value],
+            );
+        }
+
+        $activityLogger->log($request->user(), 'backup.schedule_updated', null, $data);
+
+        return ['ok' => true, 'schedule' => $data];
     }
 
     public function destroy(Request $request, string $backup, AccessControl $accessControl, ActivityLogger $activityLogger)

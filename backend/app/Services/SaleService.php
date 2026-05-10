@@ -121,7 +121,7 @@ class SaleService
 
             $session->increment('expected_amount', $cashDrawerIncrease);
 
-            return $sale->load(['items', 'payments']);
+            return $sale->load(['items', 'payments', 'customer']);
         });
     }
 }

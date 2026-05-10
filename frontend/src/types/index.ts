@@ -1,4 +1,5 @@
 export * from './app'
+export * from './admin'
 export * from './customer'
 export * from './hacienda'
 export * from './invoices'
