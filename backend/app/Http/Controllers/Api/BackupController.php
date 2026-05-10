@@ -8,6 +8,7 @@ use App\Services\AccessControl;
 use App\Services\ActivityLogger;
 use App\Services\BackupService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 
 class BackupController extends Controller
@@ -49,6 +50,19 @@ class BackupController extends Controller
         return $backupService->verify($backup);
     }
 
+    public function restore(Request $request, string $backup, AccessControl $accessControl, ActivityLogger $activityLogger, BackupService $backupService)
+    {
+        $accessControl->authorize($request->user(), 'backups.manage');
+
+        $result = $backupService->restore($backup);
+
+        if (DB::table('users')->whereKey($request->user()->id)->exists()) {
+            $activityLogger->log($request->user(), 'backup.restored', null, $result);
+        }
+
+        return $result;
+    }
+
     public function schedule(Request $request, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
         $accessControl->authorize($request->user(), 'backups.manage');
@@ -69,7 +83,11 @@ class BackupController extends Controller
 
         $activityLogger->log($request->user(), 'backup.schedule_updated', null, $data);
 
-        return ['ok' => true, 'schedule' => $data];
+        return [
+            'ok' => true,
+            'schedule' => $data,
+            'command' => 'php artisan backups:run-scheduled',
+        ];
     }
 
     public function destroy(Request $request, string $backup, AccessControl $accessControl, ActivityLogger $activityLogger)

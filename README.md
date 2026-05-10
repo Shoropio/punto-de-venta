@@ -37,6 +37,7 @@
 | **Facturacion** | Generacion de facturas fiscales vinculadas a ventas |
 | **Codigos de barras** | Generacion y asignacion de codigos a productos |
 | **Impresora** | Configuracion de impresion de tickets |
+| **Respaldos** | Respaldos manuales/programados, verificacion, descarga, restauracion y retencion |
 | **Reportes** | Resumen de ventas, productos mas vendidos, historial e inventario |
 | **Configuracion** | Datos del negocio, moneda, impuestos y catalogos (categorias, marcas, proveedores, sucursales) |
 
@@ -45,7 +46,7 @@
 - **Frontend:** React 19, Vite, TypeScript, Tailwind CSS v4, Zustand, React Query
 - **Backend:** Laravel 13, Sanctum
 - **Base de datos:** MySQL 8.4 (soporta PostgreSQL)
-- **Docker:** Docker Compose con MySQL, backend y frontend
+- **Docker:** Docker Compose con MySQL, backend, scheduler y frontend
 
 ## Requisitos
 
@@ -142,6 +143,14 @@ Si solo cambiaste el frontend y quieres reconstruir ese contenedor en segundo pl
 docker compose up -d --build frontend
 ```
 
+Los respaldos programados los ejecuta el servicio `scheduler` usando la configuracion guardada en el modulo **Respaldos**. El archivo `.zip` queda en el volumen `backup_data`, compartido con el backend para descargar, verificar, restaurar o eliminar respaldos desde la app.
+
+Para forzar manualmente una ejecucion del programador:
+
+```powershell
+docker compose exec backend php artisan backups:run-scheduled
+```
+
 Ejecutar migraciones y seeders solo la primera vez que creas la base de datos:
 
 ```powershell
@@ -158,7 +167,8 @@ Servicios:
 
 - Frontend: `http://localhost:8080`
 - Backend API: `http://localhost:8000/api`
-- MySQL: `localhost:3306`
+- MySQL: `localhost:3307`
+- Scheduler: servicio interno de Docker para tareas programadas
 
 ## Documentacion tecnica
 

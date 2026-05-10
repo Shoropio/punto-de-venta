@@ -1,4 +1,4 @@
-import { Download, RefreshCw, ShieldCheck, Trash2 } from 'lucide-react'
+import { Download, RefreshCw, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Empty } from '../../components/shared/Empty'
@@ -13,6 +13,7 @@ export function BackupsModule({
   onCreate,
   onDownload,
   onVerify,
+  onRestore,
   onDelete,
   onSchedule,
 }: {
@@ -22,6 +23,7 @@ export function BackupsModule({
   onCreate: () => void
   onDownload: (backup: BackupRow) => void
   onVerify: (backup: BackupRow) => void
+  onRestore: (backup: BackupRow) => void
   onDelete: (backup: BackupRow) => void
   onSchedule: (schedule: { enabled: boolean; frequency: 'daily' | 'weekly'; time: string; retention: number }) => void
 }) {
@@ -73,20 +75,21 @@ export function BackupsModule({
       </Card>
 
       <Card className="overflow-hidden">
-        <div className="grid grid-cols-[1fr_120px_190px_120px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">
+        <div className="grid grid-cols-[1fr_120px_190px_160px] gap-3 bg-slate-50 px-4 py-3 text-xs font-bold uppercase text-slate-500">
           <span>Archivo</span>
           <span>Tamaño</span>
           <span>Fecha</span>
           <span>Acciones</span>
         </div>
         {backups.map((backup) => (
-          <div key={backup.name} className="grid grid-cols-[1fr_120px_190px_120px] items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm">
+          <div key={backup.name} className="grid grid-cols-[1fr_120px_190px_160px] items-center gap-3 border-t border-slate-100 px-4 py-3 text-sm">
             <span className="font-semibold">{backup.name}</span>
             <span className="text-slate-500">{formatSize(backup.size)}</span>
             <span className="text-slate-500">{new Date(backup.created_at).toLocaleString()}</span>
             <span className="flex gap-1">
               <Button aria-label={`Descargar ${backup.name}`} className="h-8 px-2" variant="ghost" onClick={() => onDownload(backup)}><Download size={14} /></Button>
               <Button aria-label={`Verificar ${backup.name}`} className="h-8 px-2" variant="ghost" onClick={() => onVerify(backup)}><ShieldCheck size={14} /></Button>
+              <Button aria-label={`Restaurar ${backup.name}`} className="h-8 px-2" variant="ghost" onClick={() => onRestore(backup)}><RotateCcw size={14} /></Button>
               <Button aria-label={`Eliminar ${backup.name}`} className="h-8 px-2" variant="ghost" onClick={() => onDelete(backup)}><Trash2 size={14} /></Button>
             </span>
           </div>

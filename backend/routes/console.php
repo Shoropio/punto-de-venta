@@ -5,6 +5,8 @@ use App\Models\Setting;
 use App\Services\BackupService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
+use Symfony\Component\Console\Command\Command;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -15,7 +17,7 @@ Artisan::command('backups:run-scheduled', function (BackupService $backupService
 
     if (! filter_var($settings->get('backup_enabled', false), FILTER_VALIDATE_BOOLEAN)) {
         $this->info('Backups programados desactivados.');
-        return self::SUCCESS;
+        return Command::SUCCESS;
     }
 
     $frequency = $settings->get('backup_frequency', 'daily');
@@ -25,7 +27,7 @@ Artisan::command('backups:run-scheduled', function (BackupService $backupService
 
     if ($now->format('H:i') < $scheduledTime) {
         $this->info('Aun no es la hora programada.');
-        return self::SUCCESS;
+        return Command::SUCCESS;
     }
 
     if ($lastRun) {
@@ -36,18 +38,18 @@ Artisan::command('backups:run-scheduled', function (BackupService $backupService
 
         if ($alreadyRan) {
             $this->info('El respaldo programado ya se ejecuto en este periodo.');
-            return self::SUCCESS;
+            return Command::SUCCESS;
         }
     }
 
     $row = $backupService->create();
     Setting::updateOrCreate(['branch_id' => null, 'key' => 'backup_last_run'], ['group' => 'backups', 'value' => $now->toIso8601String()]);
 
-    $retention = (int) $settings->get('backup_retention', 30);
-    collect(glob($backupService->directory() . DIRECTORY_SEPARATOR . '*.zip'))
-        ->filter(fn ($path) => filemtime($path) < $now->copy()->subDays($retention)->timestamp)
-        ->each(fn ($path) => @unlink($path));
+    $deleted = $backupService->prune((int) $settings->get('backup_retention', 30));
 
     $this->info('Respaldo programado creado: ' . $row['name']);
-    return self::SUCCESS;
+    $this->info("Respaldos vencidos eliminados: {$deleted}");
+    return Command::SUCCESS;
 })->purpose('Ejecuta el respaldo programado si corresponde.');
+
+Schedule::command('backups:run-scheduled')->everyMinute();

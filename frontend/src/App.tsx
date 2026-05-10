@@ -1068,6 +1068,27 @@ function App() {
     }
   }
 
+  const restoreBackup = async (backup: BackupRow) => {
+    askConfirmation({
+      title: 'Restaurar respaldo',
+      message: `Se reemplazaran los datos actuales con el contenido de ${backup.name}. Crea un respaldo nuevo antes si necesitas conservar el estado actual.`,
+      tone: 'danger',
+      confirmLabel: 'Restaurar',
+      onConfirm: async () => {
+        setLoading(true)
+        try {
+          await api(`/backups/${backup.name}/restore`, { method: 'POST' })
+          await loadOperations()
+          setMessage('Respaldo restaurado correctamente.')
+        } catch (error) {
+          setMessage(error instanceof Error ? error.message : 'No fue posible restaurar el respaldo.')
+        } finally {
+          setLoading(false)
+        }
+      },
+    })
+  }
+
   const saveBackupSchedule = async (schedule: { enabled: boolean; frequency: 'daily' | 'weekly'; time: string; retention: number }) => {
     setLoading(true)
     try {
@@ -1886,6 +1907,7 @@ function App() {
                     onCreate={createBackup}
                     onDownload={downloadBackup}
                     onVerify={verifyBackup}
+                    onRestore={restoreBackup}
                     onDelete={deleteBackup}
                     onSchedule={saveBackupSchedule}
                   />

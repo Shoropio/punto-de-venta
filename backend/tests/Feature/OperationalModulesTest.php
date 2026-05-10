@@ -14,6 +14,7 @@ use App\Models\Role;
 use App\Models\Sale;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -160,6 +161,7 @@ class OperationalModulesTest extends TestCase
     public function test_backup_can_be_created_listed_and_deleted(): void
     {
         File::deleteDirectory(storage_path('app/backups'));
+        $product = $this->product(['name' => 'Producto respaldado', 'stock' => 12]);
 
         $backup = $this->postJson('/api/backups')
             ->assertCreated()
@@ -176,12 +178,30 @@ class OperationalModulesTest extends TestCase
             ->assertJsonPath('ok', true)
             ->assertJsonPath('has_database', true);
 
+        $product->update(['name' => 'Producto modificado', 'stock' => 1]);
+
+        $this->postJson("/api/backups/{$backup}/restore")
+            ->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('name', $backup);
+
+        $this->assertDatabaseHas('products', [
+            'sku' => $product->sku,
+            'name' => 'Producto respaldado',
+            'stock' => 12,
+        ]);
+
         $this->postJson('/api/backups/schedule', [
             'enabled' => true,
             'frequency' => 'daily',
-            'time' => '02:00',
+            'time' => now()->format('H:i'),
             'retention' => 30,
-        ])->assertOk()->assertJsonPath('ok', true);
+        ])->assertOk()
+            ->assertJsonPath('ok', true)
+            ->assertJsonPath('command', 'php artisan backups:run-scheduled');
+
+        $this->assertSame(0, Artisan::call('backups:run-scheduled'));
+        $this->assertStringContainsString('Respaldo programado creado:', Artisan::output());
 
         $this->deleteJson("/api/backups/{$backup}")
             ->assertNoContent();
