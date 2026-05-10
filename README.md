@@ -19,7 +19,7 @@
 [![Docker Compose](https://img.shields.io/badge/Docker_Compose-Ready-2496ED?style=for-the-badge&logo=docker)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
-[Explorar el sitio](https://shoropio.com) · [Reportar Bug](https://shoropio.com/contact) · [Solicitar Feature](https://shoropio.com/contact)
+[Explorar el sitio](https://shoropio.com) · [Reportar Bug](https://shoropio.com/contactenos) · [Solicitar Feature](https://shoropio.com/contactenos)
 
 </div>
 
