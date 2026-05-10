@@ -151,7 +151,7 @@ export function PosWorkspace({
       </section>
 
       <aside className={isDarkTheme ? 'flex min-h-0 flex-col gap-1 overflow-y-auto bg-[#2d2d2d] p-1 print:hidden' : 'flex min-h-0 flex-col gap-1 overflow-y-auto bg-stone-200 p-1 print:hidden'}>
-        <div className="grid shrink-0 grid-cols-4 gap-1">
+        <div className="grid shrink-0 grid-cols-4 auto-rows-[68px] gap-1">
           <PosAction icon={X} label="Eliminar" onClick={onRemoveLast} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay articulos para eliminar.')} muted />
           <PosAction icon={Search} label="Buscar" shortcut="F3" onClick={handleSearch} />
           <PosAction icon={Plus} label="Cantidad" shortcut="F4" onClick={onIncrementLast} disabled={cart.length === 0} onBlocked={() => onBlocked('Agrega un producto antes de cambiar cantidad.')} />
@@ -170,9 +170,9 @@ export function PosWorkspace({
           ))}
         </div>
 
-        {/* <div className={isDarkTheme ? 'h-4 shrink-0 border border-[#4b4b4b] bg-[#202020]' : 'h-4 shrink-0 border border-stone-300 bg-stone-100'} /> */}
+        <div className={isDarkTheme ? 'min-h-0 flex-1 border border-[#3b3b3b] bg-[#252525]' : 'min-h-0 flex-1 border border-stone-300 bg-stone-100'} />
 
-        <div className="grid shrink-0 grid-cols-4 auto-rows-[60px] gap-1">
+        <div className="grid shrink-0 grid-cols-4 auto-rows-[68px] gap-1">
           <PosAction icon={Banknote} label={cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'} onClick={onToggleCashSession} />
           <PosAction icon={Percent} label="Descuento" shortcut="F2" onClick={onApplyDiscount} disabled={cart.length === 0} onBlocked={() => onBlocked('Agrega productos antes de aplicar descuento.')} />
           <PosAction icon={UserRound} label="Cliente" onClick={onOpenCustomers} />
@@ -213,7 +213,7 @@ export function PosWorkspace({
             Anular orden
           </button>
         </div>
-        <div className={isDarkTheme ? 'min-h-0 flex-1 border border-[#3b3b3b] bg-[#252525]' : 'min-h-0 flex-1 border border-stone-300 bg-stone-100'} />
+
       </aside>
     </div>
   )
