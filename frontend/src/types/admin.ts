@@ -17,9 +17,19 @@ export type AdminUserRow = {
   name: string
   email: string
   role_id?: number | null
+  branch_id?: number | null
   is_active: boolean
   role?: RoleRow | null
   branch?: { name?: string } | null
+}
+
+export type AdminUserPayload = {
+  name?: string
+  email?: string
+  password?: string
+  role_id?: number | null
+  branch_id?: number | null
+  is_active?: boolean
 }
 
 export type ActivityLogRow = {

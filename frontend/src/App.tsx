@@ -25,7 +25,7 @@ import { getToastTone, roundMoney } from './lib/pos-utils'
 import { emptyProductForm, mapProduct, type ApiProduct, type ProductForm, type ProductIdentifiers } from './types/product'
 import type { Product } from './store/usePosStore'
 import { usePosStore } from './store/usePosStore'
-import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type ActivityLogRow, type AdminUserRow, type AppTheme, type AuthResponse, type BackupListResponse, type BackupRow, type BackupSchedule, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CashSessionSummary, type CreditPaymentRow, type Customer, type CustomerForm, type DashboardSummary, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PermissionRow, type PromotionRow, type Refund, type RoleRow, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type StockMovementRow, type ToastMessage, type TopProduct } from './types'
+import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type ActivityLogRow, type AdminUserPayload, type AdminUserRow, type AppTheme, type AuthResponse, type BackupListResponse, type BackupRow, type BackupSchedule, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CashSessionSummary, type CreditPaymentRow, type Customer, type CustomerForm, type DashboardSummary, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PermissionRow, type PromotionRow, type Refund, type RoleRow, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type StockMovementRow, type ToastMessage, type TopProduct } from './types'
 
 const HELD_SALE_KEY = 'pos_held_sale'
 const cashDenominations = [20000, 10000, 5000, 2000, 1000, 500, 100, 50, 25, 10, 5] as const
@@ -1270,14 +1270,26 @@ function App() {
     }
   }
 
-  const assignUserRole = async (userId: number, roleId: string) => {
+  const saveAdminUser = async (userId: number | null, payload: AdminUserPayload) => {
+    if (!payload.name?.trim() || !payload.email?.trim()) {
+      setMessage('Captura nombre y correo del usuario.')
+      return
+    }
+    if (!userId && !payload.password?.trim()) {
+      setMessage('Captura una contrasena para el usuario nuevo.')
+      return
+    }
+
     setLoading(true)
     try {
-      await api(`/admin/users/${userId}/role`, { method: 'PUT', body: JSON.stringify({ role_id: roleId ? Number(roleId) : null }) })
+      await api(userId ? `/admin/users/${userId}` : '/admin/users', {
+        method: userId ? 'PUT' : 'POST',
+        body: JSON.stringify(payload),
+      })
       await loadAdmin()
-      setMessage('Rol de usuario actualizado.')
+      setMessage(userId ? 'Usuario actualizado correctamente.' : 'Usuario creado correctamente.')
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'No fue posible actualizar el usuario.')
+      setMessage(error instanceof Error ? error.message : 'No fue posible guardar el usuario.')
     } finally {
       setLoading(false)
     }
@@ -1935,10 +1947,11 @@ function App() {
                     roles={roles}
                     permissions={permissions}
                     users={adminUsers}
+                    branches={branches}
                     logs={activityLogs}
                     loading={loading}
                     onTogglePermission={toggleRolePermission}
-                    onAssignRole={assignUserRole}
+                    onSaveUser={saveAdminUser}
                     onTestHacienda={testHaciendaConnection}
                   />
                 )}

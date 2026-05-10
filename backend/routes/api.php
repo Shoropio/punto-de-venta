@@ -34,6 +34,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/admin/roles/{role}', [AdminController::class, 'updateRole']);
     Route::get('/admin/permissions', [AdminController::class, 'permissions']);
     Route::get('/admin/users', [AdminController::class, 'users']);
+    Route::post('/admin/users', [AdminController::class, 'storeUser']);
+    Route::put('/admin/users/{user}', [AdminController::class, 'updateUser']);
     Route::put('/admin/users/{user}/role', [AdminController::class, 'assignUserRole']);
 
     Route::get('/products/identifiers', [ProductController::class, 'identifiers']);

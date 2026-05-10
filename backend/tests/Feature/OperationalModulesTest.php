@@ -214,6 +214,7 @@ class OperationalModulesTest extends TestCase
     public function test_admin_dashboard_roles_and_audit_are_available(): void
     {
         $this->seed();
+        $branch = Branch::where('code', 'MAIN')->firstOrFail();
 
         $this->getJson('/api/dashboard')
             ->assertOk()
@@ -231,6 +232,31 @@ class OperationalModulesTest extends TestCase
             'permissions' => [$permission['id']],
         ])->assertOk()
             ->assertJsonPath('permissions.0.id', $permission['id']);
+
+        $createdUserId = $this->postJson('/api/admin/users', [
+            'name' => 'Maria Lopez',
+            'email' => 'maria@example.com',
+            'password' => 'secret123',
+            'role_id' => $roles[0]['id'],
+            'branch_id' => $branch->id,
+            'is_active' => true,
+        ])->assertCreated()
+            ->assertJsonPath('name', 'Maria Lopez')
+            ->assertJsonPath('email', 'maria@example.com')
+            ->assertJsonPath('role_id', $roles[0]['id'])
+            ->json('id');
+
+        $this->putJson("/api/admin/users/{$createdUserId}", [
+            'name' => 'Maria Lopez Actualizada',
+            'email' => 'maria.lopez@example.com',
+            'role_id' => $roles[1]['id'],
+            'branch_id' => $branch->id,
+            'is_active' => false,
+        ])->assertOk()
+            ->assertJsonPath('name', 'Maria Lopez Actualizada')
+            ->assertJsonPath('email', 'maria.lopez@example.com')
+            ->assertJsonPath('role_id', $roles[1]['id'])
+            ->assertJsonPath('is_active', false);
 
         $this->getJson('/api/activity-logs')
             ->assertOk()
