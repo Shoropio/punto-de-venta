@@ -1,3 +1,19 @@
+<div align="center">
+
+![Shoropio Banner](shoropio_banner_1778371120823.png)
+
+# 🚀 POS Profesional
+### *Sistema de punto de venta con frontend React + TypeScript y backend Laravel + Sanctum.*
+
+[![Laravel](https://img.shields.io/badge/Laravel-13.x-FF2D20?style=for-the-badge&logo=laravel)](https://laravel.com)
+[![PHP](https://img.shields.io/badge/PHP-8.4-777BB4?style=for-the-badge&logo=php)](https://php.net)
+[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
+
+[Explorar el sitio](https://shoropio.com) · [Reportar Bug](https://shoropio.com/contact) · [Solicitar Feature](https://shoropio.com/contact)
+
+</div>
+
 # POS Profesional
 
 Sistema de punto de venta con frontend React + TypeScript y backend Laravel + Sanctum.
