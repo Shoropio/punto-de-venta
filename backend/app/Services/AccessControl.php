@@ -12,9 +12,7 @@ class AccessControl
 
         $user->loadMissing('role.permissions');
 
-        if (! $user->role) {
-            return;
-        }
+        abort_unless($user->role, 403, 'No tienes permisos para ejecutar esta accion.');
 
         $fallback = str($permission)->before('.')->append('.manage')->toString();
         $allowed = $user->role->permissions->contains(

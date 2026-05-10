@@ -55,6 +55,24 @@ const nav: NavItem[] = [
   { key: 'admin', label: 'Admin', icon: UserCog },
 ]
 
+const modulePermissions: Record<ModuleKey, string[]> = {
+  sale: ['pos.sell'],
+  dashboard: ['reports.view'],
+  inventory: ['inventory.manage'],
+  customers: ['settings.manage'],
+  reports: ['reports.view'],
+  cash: ['cash.open', 'cash.close', 'cash.move'],
+  credit: ['settings.manage'],
+  promotions: ['inventory.manage', 'settings.manage'],
+  payments: ['settings.manage'],
+  invoices: ['hacienda.manage'],
+  barcodes: ['inventory.manage'],
+  printer: ['settings.manage'],
+  backups: ['backups.manage'],
+  settings: ['settings.manage'],
+  admin: ['settings.manage'],
+}
+
 function App() {
   const [activeModule, setActiveModule] = useState<ModuleKey>('sale')
   const [query, setQuery] = useState('')
@@ -145,6 +163,7 @@ function App() {
   const [isFullscreen, setIsFullscreen] = useState(Boolean(document.fullscreenElement))
   const searchInputRef = useRef<HTMLInputElement>(null)
   const lastToastMessageRef = useRef(message)
+  const userRef = useRef<AuthResponse['user'] | null>(null)
   const {
     cart,
     addItem,
@@ -161,6 +180,19 @@ function App() {
   } = usePosStore()
 
   const askConfirmation = (action: ConfirmAction) => setConfirmAction(action)
+
+  const userPermissions = useMemo(() => user?.role?.permissions?.map((permission) => permission.name) ?? [], [user])
+  const hasPermission = useCallback((permission: string) => {
+    if (userPermissions.includes('settings.manage')) return true
+    if (userPermissions.includes(permission)) return true
+    const fallback = `${permission.split('.')[0]}.manage`
+    return userPermissions.includes(fallback)
+  }, [userPermissions])
+  const canAccessModule = useCallback((module: ModuleKey) => {
+    const required = modulePermissions[module] ?? []
+    return required.length === 0 || required.some(hasPermission)
+  }, [hasPermission])
+  const allowedNav = useMemo(() => nav.filter((item) => canAccessModule(item.key)), [canAccessModule])
 
   const runConfirmedAction = async () => {
     if (!confirmAction) return
@@ -273,13 +305,29 @@ function App() {
     setActivityLogs(logsResponse.data)
   }, [])
 
-  const refreshAll = useCallback(async () => {
+  const refreshAll = useCallback(async (profile?: AuthResponse['user'] | null) => {
+    const effectiveProfile = profile ?? userRef.current
+    const permissionNames = effectiveProfile?.role?.permissions?.map((permission) => permission.name) ?? []
+    const canLoad = (permission: string) => {
+      if (permissionNames.includes('settings.manage')) return true
+      if (permissionNames.includes(permission)) return true
+      return permissionNames.includes(`${permission.split('.')[0]}.manage`)
+    }
+
     const [, session] = await Promise.all([loadProducts(), loadSession()])
     void loadCustomers().catch(() => undefined)
-    void loadReports().catch(() => undefined)
-    void loadSettings().catch(() => undefined)
+    if (canLoad('reports.view')) {
+      void loadReports().catch(() => undefined)
+    }
+    if (canLoad('reports.view') || canLoad('settings.manage')) {
+      void loadAdmin().catch(() => undefined)
+    }
+    if (canLoad('settings.manage')) {
+      void loadSettings().catch(() => undefined)
+    } else {
+      void api<Paginated<NamedCatalog>>('/branches?per_page=100').then((response) => setBranches(response.data)).catch(() => undefined)
+    }
     void loadOperations().catch(() => undefined)
-    void loadAdmin().catch(() => undefined)
     setApiOnline(true)
     setMessage(session ? 'API conectada. Caja abierta y lista para vender.' : 'API conectada. Abre caja para comenzar.')
   }, [loadAdmin, loadCustomers, loadOperations, loadProducts, loadReports, loadSession, loadSettings])
@@ -294,6 +342,17 @@ function App() {
   useEffect(() => {
     configureCurrency(currencyCode)
   }, [currencyCode])
+
+  useEffect(() => {
+    userRef.current = user
+  }, [user])
+
+  useEffect(() => {
+    if (user && !canAccessModule(activeModule)) {
+      setActiveModule(canAccessModule('sale') ? 'sale' : allowedNav[0]?.key ?? 'sale')
+      setMessage('Modulo no disponible para tu rol.')
+    }
+  }, [activeModule, allowedNav, canAccessModule, user])
 
   useEffect(() => {
     document.documentElement.style.setProperty('--receipt-width', receiptWidth === '58' ? '58mm' : '80mm')
@@ -355,11 +414,13 @@ function App() {
 
     api<AuthResponse['user']>('/user')
       .then((profile) => {
+        userRef.current = profile
         setUser(profile)
-        return refreshAll()
+        return refreshAll(profile)
       })
       .catch(() => {
         localStorage.removeItem('pos_token')
+        userRef.current = null
         setUser(null)
         setApiOnline(false)
         setMessage('Sesion expirada. Inicia sesion nuevamente.')
@@ -376,9 +437,11 @@ function App() {
         body: JSON.stringify({ email, password, device_name: 'web-pos' }),
       })
       localStorage.setItem('pos_token', response.token)
+      userRef.current = response.user
       setUser(response.user)
-      await refreshAll()
+      await refreshAll(response.user)
     } catch (error) {
+      userRef.current = null
       setUser(null)
       setApiOnline(false)
       setMessage(error instanceof Error ? error.message : 'No fue posible iniciar sesion.')
@@ -394,6 +457,7 @@ function App() {
       // Cleanup local session even if the server token is already gone.
     }
     localStorage.removeItem('pos_token')
+    userRef.current = null
     setUser(null)
     setApiOnline(false)
     setCurrentCashSession(null)
@@ -403,6 +467,11 @@ function App() {
   }
 
   const openCashSession = async () => {
+    if (!hasPermission('cash.open')) {
+      handleBlockedAction('No tienes permisos para abrir caja.')
+      return
+    }
+
     if (!cashOpeningForm.cash_register_id || !cashOpeningForm.opening_amount || !cashOpeningForm.shift || !cashOpeningForm.supervisor_name.trim()) {
       setActiveModule('cash')
       setMessage('Selecciona caja, turno, fondo inicial y supervisor para abrir caja.')
@@ -433,6 +502,11 @@ function App() {
   }
 
   const openCashClosingDialog = async () => {
+    if (!hasPermission('cash.close')) {
+      handleBlockedAction('No tienes permisos para cerrar caja.')
+      return
+    }
+
     if (!cashSessionId) {
       handleBlockedAction('No hay caja abierta para cerrar.')
       return
@@ -1476,6 +1550,10 @@ function App() {
   }
 
   const openRefundsFromPos = () => {
+    if (!hasPermission('refunds.create') && !canAccessModule('reports')) {
+      handleBlockedAction('No tienes permisos para registrar devoluciones.')
+      return
+    }
     setActiveModule('reports')
     setMessage('Selecciona una venta completada para devolverla.')
   }
@@ -1620,7 +1698,7 @@ function App() {
             </div>
           </div>
           <nav className="flex min-h-0 flex-1 items-center gap-1 overflow-x-auto px-2 lg:flex-col lg:items-stretch lg:overflow-x-hidden lg:overflow-y-auto lg:py-4">
-            {nav.map((item) => (
+            {allowedNav.map((item) => (
               <button
                 key={item.key}
                 aria-label={`Ir a ${item.label}`}
@@ -1639,7 +1717,7 @@ function App() {
           <header className="shrink-0 flex flex-col gap-3 border-b border-[#343434] bg-[#202020] px-5 py-3 text-white xl:flex-row xl:items-center xl:justify-between">
             <div>
               <p className={isDarkTheme ? 'text-sm font-medium text-[#38bdf8]' : 'text-sm font-medium text-stone-600'}>{user.branch?.name ?? 'Sucursal Principal'} - {apiOnline ? 'API conectada' : 'Sin conexion API'}</p>
-              <h1 className="text-2xl font-bold">{nav.find((item) => item.key === activeModule)?.label ?? 'Punto de venta'}</h1>
+              <h1 className="text-2xl font-bold">{allowedNav.find((item) => item.key === activeModule)?.label ?? 'Punto de venta'}</h1>
             </div>
             <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto_auto_auto] xl:w-[860px]">
               <div className="relative">
@@ -1665,10 +1743,12 @@ function App() {
               <Button className="h-9" variant="secondary" onClick={toggleFullscreen} title="Pantalla completa" aria-label="Pantalla completa">
                 {isFullscreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
               </Button>
-              <Button className="h-9" variant={cashSessionOpen ? 'secondary' : 'primary'} onClick={cashSessionOpen ? openCashClosingDialog : openCashSession} disabled={loading}>
-                <WalletCards size={18} />
-                {cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'}
-              </Button>
+              {canAccessModule('cash') && (
+                <Button className="h-9" variant={cashSessionOpen ? 'secondary' : 'primary'} onClick={cashSessionOpen ? openCashClosingDialog : openCashSession} disabled={loading || (cashSessionOpen && !hasPermission('cash.close'))}>
+                  <WalletCards size={18} />
+                  {cashSessionOpen ? (hasPermission('cash.close') ? 'Cerrar caja' : 'Caja abierta') : 'Abrir caja'}
+                </Button>
+              )}
               <Button className="h-9" variant="ghost" onClick={logout} title="Cerrar sesion" aria-label="Cerrar sesion">
                 <LogOut size={18} />
               </Button>

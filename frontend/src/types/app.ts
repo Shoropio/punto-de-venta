@@ -28,6 +28,11 @@ export type AuthResponse = {
     name: string
     email: string
     branch?: { name?: string } | null
+    role?: {
+      name: string
+      display_name: string
+      permissions: Array<{ name: string; module: string }>
+    } | null
   }
 }
 

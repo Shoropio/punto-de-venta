@@ -2,6 +2,8 @@
 
 namespace Database\Factories;
 
+use App\Models\Permission;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
@@ -29,6 +31,16 @@ class UserFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
+            'role_id' => function () {
+                $permission = Permission::firstOrCreate(
+                    ['name' => 'settings.manage'],
+                    ['module' => 'settings', 'description' => 'Administrar configuracion'],
+                );
+                $role = Role::firstOrCreate(['name' => 'test_admin'], ['display_name' => 'Administrador de prueba']);
+                $role->permissions()->syncWithoutDetaching([$permission->id]);
+
+                return $role->id;
+            },
             'remember_token' => Str::random(10),
         ];
     }
