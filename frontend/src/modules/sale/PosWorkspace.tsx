@@ -150,15 +150,15 @@ export function PosWorkspace({
         </div>
       </section>
 
-      <aside className={isDarkTheme ? 'grid min-h-0 content-start gap-1 overflow-y-auto bg-[#2d2d2d] p-1 print:hidden' : 'grid min-h-0 content-start gap-1 overflow-y-auto bg-stone-200 p-1 print:hidden'}>
-        <div className="grid grid-cols-4 gap-1">
+      <aside className={isDarkTheme ? 'flex min-h-0 flex-col gap-1 overflow-y-auto bg-[#2d2d2d] p-1 print:hidden' : 'flex min-h-0 flex-col gap-1 overflow-y-auto bg-stone-200 p-1 print:hidden'}>
+        <div className="grid shrink-0 grid-cols-4 gap-1">
           <PosAction icon={X} label="Eliminar" onClick={onRemoveLast} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay articulos para eliminar.')} muted />
           <PosAction icon={Search} label="Buscar" shortcut="F3" onClick={handleSearch} />
           <PosAction icon={Plus} label="Cantidad" shortcut="F4" onClick={onIncrementLast} disabled={cart.length === 0} onBlocked={() => onBlocked('Agrega un producto antes de cambiar cantidad.')} />
           <PosAction icon={ReceiptText} label="Nueva venta" shortcut="F8" onClick={onClear} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay una venta activa para limpiar.')} />
         </div>
 
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid shrink-0 grid-cols-3 gap-1">
           {(['cash', 'card', 'mixed'] as const).map((method) => (
             <button
               key={method}
@@ -170,7 +170,9 @@ export function PosWorkspace({
           ))}
         </div>
 
-        <div className="mt-2 grid grid-cols-4 gap-1 xl:mt-4">
+        <div className={isDarkTheme ? 'h-4 shrink-0 border border-[#4b4b4b] bg-[#202020]' : 'h-4 shrink-0 border border-stone-300 bg-stone-100'} />
+
+        <div className="grid min-h-[312px] flex-1 grid-cols-4 grid-rows-4 gap-1">
           <PosAction icon={Banknote} label={cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'} onClick={onToggleCashSession} />
           <PosAction icon={Percent} label="Descuento" shortcut="F2" onClick={onApplyDiscount} disabled={cart.length === 0} onBlocked={() => onBlocked('Agrega productos antes de aplicar descuento.')} />
           <PosAction icon={UserRound} label="Cliente" onClick={onOpenCustomers} />
@@ -179,26 +181,8 @@ export function PosWorkspace({
           <PosAction icon={MessageSquare} label="Nota" onClick={() => onMessage('Comentario agregado a la orden actual.')} />
           <PosAction icon={PackageSearch} label="En espera" shortcut="F9" onClick={onSaveSale} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay articulos para guardar.')} />
           <PosAction icon={MoreHorizontal} label="Recuperar" onClick={onRestoreSale} />
-          <PosAction icon={Lock} label="Bloquear" onClick={onLock} />
-
           <button
-            className="col-span-2 h-[68px] border border-[#0088cc] bg-[#0088cc] text-base font-bold text-white hover:bg-[#0077b3] aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-            aria-disabled={loading || !cashSessionOpen || cart.length === 0 || undefined}
-            onClick={() => {
-              if (loading || !cashSessionOpen || cart.length === 0) {
-                onBlocked(!cashSessionOpen ? 'Abre caja antes de cobrar.' : 'Agrega productos antes de cobrar.')
-                return
-              }
-              onCharge()
-            }}
-          >
-            <span className="block text-xl">F10</span>
-            {loading ? 'Procesando...' : 'Pago'}
-          </button>
-          
-          <PosAction icon={CreditCard} label="Transferir" shortcut="F7" active={paymentMethod === 'transfer'} onClick={() => onSetPayment('transfer')} />
-          <button
-            className="h-[68px] border border-red-700 bg-red-700 text-[13px] font-semibold text-white hover:bg-red-600 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            className="row-span-2 border border-red-700 bg-red-700 text-[13px] font-semibold text-white hover:bg-red-600 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             aria-disabled={cart.length === 0 || undefined}
             onClick={() => {
               if (cart.length === 0) {
@@ -211,6 +195,24 @@ export function PosWorkspace({
             <Trash2 className="mx-auto mb-1.5" size={22} />
             Anular orden
           </button>
+
+          <button
+            className="col-span-2 border border-[#0088cc] bg-[#0088cc] text-base font-bold text-white hover:bg-[#0077b3] aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            aria-disabled={loading || !cashSessionOpen || cart.length === 0 || undefined}
+            onClick={() => {
+              if (loading || !cashSessionOpen || cart.length === 0) {
+                onBlocked(!cashSessionOpen ? 'Abre caja antes de cobrar.' : 'Agrega productos antes de cobrar.')
+                return
+              }
+              onCharge()
+            }}
+          >
+            <span className="block text-xl">F10</span>
+            {loading ? 'Procesando...' : 'Pago'}
+          </button>
+          <PosAction icon={CreditCard} label="Transferir" shortcut="F7" active={paymentMethod === 'transfer'} onClick={() => onSetPayment('transfer')} />
+          <PosAction icon={Lock} label="Bloquear" onClick={onLock} />
+          <div className={isDarkTheme ? 'col-span-3 border border-[#3b3b3b] bg-[#252525]' : 'col-span-3 border border-stone-300 bg-stone-100'} />
         </div>
       </aside>
     </div>

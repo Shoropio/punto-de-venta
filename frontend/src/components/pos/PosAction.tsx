@@ -8,6 +8,7 @@ export function PosAction({
   disabled,
   muted,
   active,
+  className = '',
   onBlocked,
 }: {
   icon: ComponentType<{ size?: number; className?: string }>
@@ -17,6 +18,7 @@ export function PosAction({
   disabled?: boolean
   muted?: boolean
   active?: boolean
+  className?: string
   onBlocked?: () => void
 }) {
   const handleClick = () => {
@@ -30,7 +32,7 @@ export function PosAction({
 
   return (
     <button
-      className={`relative h-[68px] border bg-[#2b2b2b] text-[13px] font-semibold text-white transition hover:bg-[#383838] aria-disabled:cursor-not-allowed aria-disabled:opacity-45 ${active ? 'border-[#0088cc] bg-[#333]' : 'border-[#575757]'} ${muted ? 'text-stone-400' : ''}`}
+      className={`relative h-full min-h-[68px] border bg-[#2b2b2b] text-[13px] font-semibold text-white transition hover:bg-[#383838] aria-disabled:cursor-not-allowed aria-disabled:opacity-45 ${active ? 'border-[#0088cc] bg-[#333]' : 'border-[#575757]'} ${muted ? 'text-stone-400' : ''} ${className}`}
       onClick={handleClick}
       aria-disabled={disabled || undefined}
     >
