@@ -20,11 +20,15 @@ export function ToastItem({ toast, onDismiss }: { toast: ToastMessage; onDismiss
       ? 'border-red-700 bg-red-950 text-red-50'
       : 'border-[#575757] bg-[#2b2b2b] text-white'
   const Icon = toast.tone === 'success' ? CheckCircle2 : toast.tone === 'error' ? AlertTriangle : Info
+  const title = toast.tone === 'success' ? 'Correcto' : toast.tone === 'error' ? 'Error' : 'Informacion'
 
   return (
-    <div className={`grid grid-cols-[auto_1fr_auto] items-start gap-3 border px-4 py-3 shadow-lg ${toneClass}`} role="status">
+    <div className={`grid grid-cols-[auto_1fr_auto] items-start gap-3 border px-4 py-3 shadow-lg ${toneClass}`} role={toast.tone === 'error' ? 'alert' : 'status'}>
       <Icon className="mt-0.5 shrink-0" size={19} />
-      <p className="text-sm font-medium leading-5">{toast.text}</p>
+      <div>
+        <p className="text-xs font-bold uppercase opacity-75">{title}</p>
+        <p className="text-sm font-medium leading-5">{toast.text}</p>
+      </div>
       <button className="grid h-6 w-6 place-items-center text-white/80 hover:bg-white/10 hover:text-white" aria-label="Cerrar aviso" onClick={() => onDismiss(toast.id)}>
         <X size={16} />
       </button>

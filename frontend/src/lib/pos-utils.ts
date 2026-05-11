@@ -64,7 +64,59 @@ export function translateSettingValue(key: string, value: unknown) {
 
 export function getToastTone(message: string): ToastTone {
   const normalized = message.toLowerCase()
-  if (normalized.includes('no fue posible') || normalized.includes('falta') || normalized.includes('captura') || normalized.includes('selecciona') || normalized.includes('expirada')) return 'error'
-  if (normalized.includes('correctamente') || normalized.includes('registrad') || normalized.includes('guardad') || normalized.includes('cobrada') || normalized.includes('aplicad')) return 'success'
+  const errorSignals = [
+    'no fue posible',
+    'no tienes permisos',
+    'no hay',
+    'no cubre',
+    'no disponible',
+    'requiere atencion',
+    'requiere revision',
+    'falta',
+    'captura',
+    'selecciona',
+    'ingresa',
+    'agrega',
+    'obligatorio',
+    'inactivo',
+    'invalida',
+    'invalido',
+    'expirada',
+    'error',
+    'fallido',
+    'rechazad',
+    'pendiente',
+  ]
+  const successSignals = [
+    'correctamente',
+    'registrad',
+    'guardad',
+    'cobrada',
+    'aplicad',
+    'cread',
+    'actualizad',
+    'eliminad',
+    'asignad',
+    'agregado',
+    'agregada',
+    'abierta',
+    'cerrada',
+    'validada',
+    'firmado',
+    'firmada',
+    'generado',
+    'generada',
+    'enviado',
+    'enviada',
+    'aceptad',
+    'restaurad',
+    'finalizada',
+    'iniciada',
+    'listo',
+    'lista',
+  ]
+
+  if (errorSignals.some((signal) => normalized.includes(signal))) return 'error'
+  if (successSignals.some((signal) => normalized.includes(signal))) return 'success'
   return 'info'
 }
