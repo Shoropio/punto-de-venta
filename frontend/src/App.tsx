@@ -59,7 +59,7 @@ const modulePermissions: Record<ModuleKey, string[]> = {
   sale: ['pos.sell'],
   dashboard: ['reports.view'],
   inventory: ['inventory.manage'],
-  customers: ['settings.manage'],
+  customers: ['settings.manage', 'pos.sell'],
   reports: ['reports.view'],
   cash: ['cash.open', 'cash.close', 'cash.move'],
   credit: ['settings.manage'],

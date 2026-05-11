@@ -8,6 +8,7 @@ use App\Models\CashMovement;
 use App\Models\CashSession;
 use App\Models\Customer;
 use App\Models\HaciendaSetting;
+use App\Models\Permission;
 use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\Role;
@@ -310,6 +311,87 @@ class OperationalModulesTest extends TestCase
         $this->postJson("/api/cash-sessions/{$session['id']}/close", [
             'closing_amount' => 50226,
             'notes' => 'Cierre E2E aceptado',
+        ])->assertOk()
+            ->assertJsonPath('status', 'closed')
+            ->assertJsonPath('difference_amount', '0.00');
+    }
+
+    public function test_cashier_can_open_register_sell_create_customer_and_issue_local_invoice(): void
+    {
+        Storage::fake('local');
+
+        $cashierRole = Role::create(['name' => 'cashier_e2e', 'display_name' => 'Cajero E2E']);
+        $sellPermission = Permission::firstOrCreate(['name' => 'pos.sell'], ['module' => 'pos', 'description' => 'Crear ventas']);
+        $openPermission = Permission::firstOrCreate(['name' => 'cash.open'], ['module' => 'cash', 'description' => 'Abrir caja']);
+        $cashierRole->permissions()->sync([$sellPermission->id, $openPermission->id]);
+
+        $cashier = User::factory()->create([
+            'name' => 'Maria Lopez',
+            'email' => 'maria.cashier@example.com',
+            'branch_id' => $this->user->branch_id,
+            'role_id' => $cashierRole->id,
+        ]);
+
+        Sanctum::actingAs($cashier);
+
+        $register = CashRegister::create(['branch_id' => $this->user->branch_id, 'name' => 'Caja 2', 'code' => 'C2-E2E']);
+        $product = $this->product(['sale_price' => 100, 'tax_rate' => 13, 'stock' => 10]);
+
+        $session = $this->postJson('/api/cash-sessions/open', [
+            'cash_register_id' => $register->id,
+            'opening_amount' => 50000,
+            'shift' => 'Manana',
+            'supervisor_name' => 'Carlos Ramirez',
+            'notes' => 'Supervisor confirma monto presencialmente.',
+        ])->assertCreated()
+            ->assertJsonPath('user.id', $cashier->id)
+            ->assertJsonPath('cash_register.name', 'Caja 2')
+            ->json();
+
+        $customer = $this->postJson('/api/customers', [
+            'name' => 'Cliente Factura SRL',
+            'email' => 'cliente.factura@example.com',
+            'identification_type' => '02',
+            'identification_number' => '3101123456',
+        ])->assertCreated()
+            ->assertJsonPath('name', 'Cliente Factura SRL')
+            ->json();
+
+        $sale = $this->postJson('/api/sales', [
+            'cash_session_id' => $session['id'],
+            'customer_id' => $customer['id'],
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'payments' => [['method' => 'cash', 'amount' => 113]],
+        ])->assertCreated()
+            ->assertJsonPath('data.total', '113.00')
+            ->assertJsonPath('data.customer.name', 'Cliente Factura SRL')
+            ->json('data');
+
+        $invoice = $this->postJson('/api/invoices', [
+            'sale_id' => $sale['id'],
+            'customer_id' => $customer['id'],
+            'tax_id' => '3101123456',
+            'legal_name' => 'Cliente Factura SRL',
+            'email' => 'cliente.factura@example.com',
+            'auto_process' => true,
+        ])->assertCreated()
+            ->assertJsonPath('customer_id', $customer['id'])
+            ->assertJsonPath('hacienda_status', 'xml_generated')
+            ->json();
+
+        Storage::disk('local')->assertExists($invoice['xml_path']);
+
+        $this->postJson("/api/cash-sessions/{$session['id']}/close", [
+            'closing_amount' => 50113,
+            'notes' => 'Intento de cierre por cajero.',
+        ])->assertForbidden();
+
+        Sanctum::actingAs($this->user);
+        \App\Models\Invoice::findOrFail($invoice['id'])->update(['hacienda_status' => 'accepted', 'status' => 'accepted']);
+
+        $this->postJson("/api/cash-sessions/{$session['id']}/close", [
+            'closing_amount' => 50113,
+            'notes' => 'Cierre autorizado por supervisor.',
         ])->assertOk()
             ->assertJsonPath('status', 'closed')
             ->assertJsonPath('difference_amount', '0.00');

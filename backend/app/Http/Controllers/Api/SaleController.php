@@ -20,7 +20,7 @@ class SaleController extends Controller
 
     public function store(SaleRequest $request, SaleService $saleService, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'sales.cancel');
+        $accessControl->authorize($request->user(), 'pos.sell');
 
         $sale = $saleService->create($request->validated(), $request->user());
         $activityLogger->log($request->user(), 'sale.completed', $sale, [
@@ -39,7 +39,7 @@ class SaleController extends Controller
 
     public function cancel(Request $request, Sale $sale, AccessControl $accessControl, ActivityLogger $activityLogger)
     {
-        $accessControl->authorize($request->user(), 'pos.sell');
+        $accessControl->authorize($request->user(), 'sales.cancel');
 
         $sale->update(['status' => 'cancelled']);
         $activityLogger->log($request->user(), 'sale.cancelled', $sale, [
