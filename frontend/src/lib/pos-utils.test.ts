@@ -26,6 +26,7 @@ describe('pos-utils', () => {
 
   it('classifies toast tones from messages', () => {
     expect(getToastTone('Producto guardado correctamente.')).toBe('success')
+    expect(getToastTone('Papel higienico agregado.')).toBe('success')
     expect(getToastTone('Caja abierta correctamente. Listo para iniciar ventas.')).toBe('success')
     expect(getToastTone('Factura rechazada por Hacienda.')).toBe('error')
     expect(getToastTone('No tienes permisos para cerrar caja.')).toBe('error')

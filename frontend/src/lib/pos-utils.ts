@@ -116,7 +116,7 @@ export function getToastTone(message: string): ToastTone {
     'lista',
   ]
 
-  if (errorSignals.some((signal) => normalized.includes(signal))) return 'error'
   if (successSignals.some((signal) => normalized.includes(signal))) return 'success'
+  if (errorSignals.some((signal) => normalized.includes(signal))) return 'error'
   return 'info'
 }

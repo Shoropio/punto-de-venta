@@ -85,4 +85,40 @@ class SaleTest extends TestCase
 
         $this->assertSame('175.00', $session->fresh()->expected_amount);
     }
+
+    public function test_sale_rejects_product_without_enough_stock(): void
+    {
+        $branch = Branch::create(['name' => 'Principal', 'code' => 'MAIN']);
+        $user = User::factory()->create(['branch_id' => $branch->id]);
+        Sanctum::actingAs($user);
+
+        $register = CashRegister::create(['branch_id' => $branch->id, 'name' => 'Caja 1', 'code' => 'C1']);
+        $session = CashSession::create([
+            'cash_register_id' => $register->id,
+            'user_id' => $user->id,
+            'opening_amount' => 100,
+            'expected_amount' => 100,
+            'opened_at' => now(),
+        ]);
+
+        $product = Product::create([
+            'sku' => 'SALE-NO-STOCK',
+            'name' => 'Producto Sin Stock',
+            'cost_price' => 10,
+            'sale_price' => 50,
+            'tax_rate' => 0,
+            'stock' => 0,
+            'unit' => 'piece',
+        ]);
+
+        $this->postJson('/api/sales', [
+            'cash_session_id' => $session->id,
+            'items' => [['product_id' => $product->id, 'quantity' => 1]],
+            'payments' => [['method' => 'cash', 'amount' => 50]],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['stock']);
+
+        $this->assertSame('0.000', $product->fresh()->stock);
+        $this->assertSame('100.00', $session->fresh()->expected_amount);
+    }
 }

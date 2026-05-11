@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Archive, BadgeDollarSign, Banknote, Barcode, BarChart3, Boxes, CreditCard, LayoutDashboard, Loader2, LogOut, Maximize2, Minimize2, Moon, Printer, ReceiptText, Search, Settings, ShieldCheck, Sun, Tags, UserCog, Users, WalletCards } from 'lucide-react'
+import { Archive, BadgeDollarSign, Banknote, Barcode, BarChart3, Boxes, CreditCard, LayoutDashboard, Loader2, LogOut, Maximize2, Minimize2, Moon, Printer, ReceiptText, Search, Settings, ShieldCheck, Sun, Tags, UserCog, UserPlus, Users, WalletCards } from 'lucide-react'
 import { Button } from './components/ui/button'
 import { Card } from './components/ui/card'
 import { Input } from './components/ui/input'
@@ -151,6 +151,9 @@ function App() {
   const [message, setMessage] = useState('Inicia sesion para operar con la API.')
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [cashReceived, setCashReceived] = useState('')
+  const [paymentCustomerId, setPaymentCustomerId] = useState('')
+  const [creditCustomerMode, setCreditCustomerMode] = useState<'existing' | 'new'>('existing')
+  const [creditCustomerForm, setCreditCustomerForm] = useState<CustomerForm>(emptyCustomerForm)
   const [invoicePromptSale, setInvoicePromptSale] = useState<SaleResponse['data'] | null>(null)
   const [quickInvoiceTaxId, setQuickInvoiceTaxId] = useState('')
   const [quickInvoiceLegalName, setQuickInvoiceLegalName] = useState('')
@@ -399,6 +402,34 @@ function App() {
     setMessage(value)
   }, [playBlockedSound])
 
+  const addProductToCart = useCallback((product: Product) => {
+    if (product.stock <= 0) {
+      handleBlockedAction(`${product.name} no tiene stock disponible.`)
+      return
+    }
+
+    const currentQuantity = cart.find((item) => item.id === product.id)?.quantity ?? 0
+    if (currentQuantity >= product.stock) {
+      handleBlockedAction(`No hay mas stock disponible para ${product.name}.`)
+      return
+    }
+
+    addItem(product)
+    setMessage(`${product.name} agregado.`)
+  }, [addItem, cart, handleBlockedAction])
+
+  const updateCartQuantity = useCallback((productId: number, quantity: number) => {
+    const item = cart.find((current) => current.id === productId)
+    if (!item) return
+
+    if (quantity > item.stock) {
+      handleBlockedAction(`Stock disponible para ${item.name}: ${item.stock}.`)
+      return
+    }
+
+    updateQuantity(productId, quantity)
+  }, [cart, handleBlockedAction, updateQuantity])
+
   useEffect(() => {
     const handleFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
     document.addEventListener('fullscreenchange', handleFullscreenChange)
@@ -590,6 +621,9 @@ function App() {
     }
 
     setCashReceived(paymentMethod === 'cash' || paymentMethod === 'mixed' ? '' : total.toFixed(2))
+    setPaymentCustomerId(selectedCustomerId)
+    setCreditCustomerMode('existing')
+    setCreditCustomerForm(emptyCustomerForm)
     setPaymentDialogOpen(true)
   }
 
@@ -597,9 +631,32 @@ function App() {
     if (loading) return
     setPaymentDialogOpen(false)
     setCashReceived('')
+    setPaymentCustomerId('')
+    setCreditCustomerForm(emptyCustomerForm)
   }
 
-  const chargeSale = async (paidAmount = total) => {
+  const createCreditCustomerFromPayment = async () => {
+    if (!creditCustomerForm.name.trim()) {
+      throw new Error('Captura el nombre del cliente para vender a credito.')
+    }
+
+    const customer = await api<Customer>('/customers', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...creditCustomerForm,
+        email: creditCustomerForm.email || null,
+        phone: creditCustomerForm.phone || null,
+        address: creditCustomerForm.address || null,
+        credit_limit: creditCustomerForm.credit_limit || 0,
+        identification_number: creditCustomerForm.identification_number || null,
+      }),
+    })
+    await loadCustomers()
+    setSelectedCustomerId(String(customer.id))
+    return customer
+  }
+
+  const chargeSale = async (paidAmount = total, customerIdOverride?: number | null) => {
     if (!apiOnline || !cashSessionId) {
       setMessage('Falta API o caja abierta para cobrar.')
       return
@@ -613,7 +670,7 @@ function App() {
         method: 'POST',
         body: JSON.stringify({
           cash_session_id: cashSessionId,
-          customer_id: selectedCustomer ? selectedCustomer.id : null,
+          customer_id: customerIdOverride ?? (selectedCustomer ? selectedCustomer.id : null),
           items: cart.map((item) => ({
             product_id: item.id,
             quantity: item.quantity,
@@ -625,10 +682,11 @@ function App() {
       })
       setLastReceipt(sale.data)
       setInvoicePromptSale(sale.data)
-      if (selectedCustomer) {
-        setQuickInvoiceTaxId(selectedCustomer.identification_number ?? '')
-        setQuickInvoiceLegalName(selectedCustomer.name)
-        setQuickInvoiceEmail(selectedCustomer.email ?? '')
+      const invoiceCustomer = sale.data.customer ?? selectedCustomer
+      if (invoiceCustomer?.name) {
+        setQuickInvoiceTaxId(invoiceCustomer.identification_number ?? '')
+        setQuickInvoiceLegalName(invoiceCustomer.name)
+        setQuickInvoiceEmail(invoiceCustomer.email ?? '')
       }
       clearCart()
       setSelectedCustomerId('')
@@ -636,6 +694,8 @@ function App() {
       setMessage(`Venta ${sale.data.folio} cobrada correctamente.`)
       setPaymentDialogOpen(false)
       setCashReceived('')
+      setPaymentCustomerId('')
+      setCreditCustomerForm(emptyCustomerForm)
       window.setTimeout(() => window.print(), 100)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'No fue posible cobrar la venta.')
@@ -645,7 +705,12 @@ function App() {
   }
 
   const confirmPayment = () => {
+    void confirmPaymentAsync()
+  }
+
+  const confirmPaymentAsync = async () => {
     const requiresCashAmount = paymentMethod === 'cash' || paymentMethod === 'mixed'
+    const isCreditSale = paymentMethod === 'credit'
     const paidAmount = requiresCashAmount ? Number(cashReceived) : total
 
     if (requiresCashAmount && (!cashReceived || Number.isNaN(paidAmount))) {
@@ -658,7 +723,29 @@ function App() {
       return
     }
 
-    void chargeSale(paidAmount)
+    try {
+      let customerId = selectedCustomer?.id ?? null
+
+      if (isCreditSale) {
+        if (creditCustomerMode === 'new') {
+          const customer = await createCreditCustomerFromPayment()
+          customerId = customer.id
+        } else {
+          customerId = Number(paymentCustomerId || selectedCustomerId)
+        }
+
+        if (!customerId || Number.isNaN(customerId)) {
+          handleBlockedAction('Selecciona o crea un cliente para vender a credito.')
+          return
+        }
+
+        setSelectedCustomerId(String(customerId))
+      }
+
+      await chargeSale(paidAmount, customerId)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible preparar la venta a credito.')
+    }
   }
 
   const saveProduct = async () => {
@@ -1453,7 +1540,7 @@ function App() {
       setMessage('Agrega un producto antes de cambiar cantidad.')
       return
     }
-    updateQuantity(lastItem.id, lastItem.quantity + 1)
+    updateCartQuantity(lastItem.id, lastItem.quantity + 1)
     setMessage(`Cantidad actualizada para ${lastItem.name}.`)
   }
 
@@ -1568,11 +1655,10 @@ function App() {
     )
 
     if (exactMatch) {
-      addItem(exactMatch)
+      addProductToCart(exactMatch)
       setQuery('')
-      setMessage(`${exactMatch.name} agregado.`)
     }
-  }, [addItem, productsSource, query])
+  }, [addProductToCart, productsSource, query])
 
   const setPosMessage = (value: string) => {
     setMessage(value)
@@ -1730,9 +1816,8 @@ function App() {
                   onChange={(event) => setQuery(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' && products.length > 0) {
-                      addItem(products[0])
+                      addProductToCart(products[0])
                       setQuery('')
-                      setMessage(`${products[0].name} agregado.`)
                     }
                   }}
                 />
@@ -1769,7 +1854,7 @@ function App() {
               selectedCustomerName={selectedCustomer?.name}
               cashSessionOpen={cashSessionOpen}
               paymentMethod={paymentMethod}
-              onAdd={addItem}
+              onAdd={addProductToCart}
               onRefresh={loadProducts}
               onFocusSearch={focusSearch}
               onClear={startNewSale}
@@ -1778,7 +1863,7 @@ function App() {
               onRemoveLast={removeLastCartItem}
               onCancelOrder={cancelCurrentOrder}
               onSetPayment={setPaymentMethod}
-              onUpdateQuantity={updateQuantity}
+              onUpdateQuantity={updateCartQuantity}
               onIncrementLast={incrementLastCartItem}
               onApplyDiscount={applyQuickDiscount}
               onToggleCashSession={cashSessionOpen ? openCashClosingDialog : openCashSession}
@@ -2083,7 +2168,7 @@ function App() {
 
       {paymentDialogOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 print:hidden">
-          <Card className={isDarkTheme ? 'w-full max-w-md border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'w-full max-w-md p-5'}>
+          <Card className={isDarkTheme ? 'w-full max-w-lg border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'w-full max-w-lg p-5'}>
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <p className={isDarkTheme ? 'text-sm font-semibold text-[#38bdf8]' : 'text-sm font-semibold text-[#0088cc]'}>Cobro de venta</p>
@@ -2093,6 +2178,30 @@ function App() {
             </div>
 
             <div className="space-y-3">
+              <div className="grid grid-cols-4 gap-1">
+                {([
+                  ['cash', 'Efectivo'],
+                  ['card', 'Tarjeta'],
+                  ['transfer', 'SINPE'],
+                  ['credit', 'Credito'],
+                ] as const).map(([method, label]) => (
+                  <button
+                    key={method}
+                    className={paymentMethod === method
+                      ? 'border border-[#0088cc] bg-[#0088cc] px-2 py-2 text-xs font-bold text-white'
+                      : isDarkTheme
+                        ? 'border border-[#575757] bg-[#1f1f1f] px-2 py-2 text-xs font-semibold text-stone-200 hover:bg-[#303030]'
+                        : 'border border-stone-300 bg-white px-2 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100'}
+                    onClick={() => {
+                      setPaymentMethod(method)
+                      setCashReceived(method === 'cash' ? '' : total.toFixed(2))
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
               <div className={isDarkTheme ? 'grid grid-cols-2 gap-2 bg-[#242424] p-3 text-sm' : 'grid grid-cols-2 gap-2 bg-stone-100 p-3 text-sm'}>
                 <span>Metodo</span>
                 <strong className="text-right">{paymentMethod === 'cash' ? 'Efectivo' : paymentMethod === 'card' ? 'Tarjeta' : paymentMethod === 'transfer' ? 'Transferencia' : paymentMethod === 'credit' ? 'Credito' : 'Mixto'}</strong>
@@ -2118,6 +2227,51 @@ function App() {
                     if (event.key === 'Escape') closePaymentDialog()
                   }}
                 />
+              )}
+
+              {paymentMethod === 'credit' && (
+                <div className={isDarkTheme ? 'space-y-3 border border-[#4b4b4b] bg-[#242424] p-3' : 'space-y-3 border border-stone-300 bg-stone-50 p-3'}>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button className="h-9" variant={creditCustomerMode === 'existing' ? 'primary' : 'secondary'} onClick={() => setCreditCustomerMode('existing')}>
+                      <Users size={16} />
+                      Cliente
+                    </Button>
+                    <Button className="h-9" variant={creditCustomerMode === 'new' ? 'primary' : 'secondary'} onClick={() => setCreditCustomerMode('new')}>
+                      <UserPlus size={16} />
+                      Crear
+                    </Button>
+                  </div>
+
+                  {creditCustomerMode === 'existing' ? (
+                    <select
+                      className="h-10 w-full rounded-none border border-stone-300 bg-white px-3 text-sm outline-none focus:border-[#0088cc] dark:border-[#4b4b4b] dark:bg-[#1f1f1f] dark:text-stone-100"
+                      value={paymentCustomerId || selectedCustomerId}
+                      onChange={(event) => {
+                        setPaymentCustomerId(event.target.value)
+                        setSelectedCustomerId(event.target.value)
+                      }}
+                    >
+                      <option value="">Selecciona cliente para credito</option>
+                      {customers.map((customer) => (
+                        <option key={customer.id} value={customer.id}>
+                          {customer.name} {customer.identification_number ? `- ${customer.identification_number}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="grid gap-2">
+                      <Input placeholder="Nombre del cliente" value={creditCustomerForm.name} onChange={(event) => setCreditCustomerForm({ ...creditCustomerForm, name: event.target.value })} />
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input placeholder="Telefono" value={creditCustomerForm.phone} onChange={(event) => setCreditCustomerForm({ ...creditCustomerForm, phone: event.target.value })} />
+                        <Input placeholder="Email" value={creditCustomerForm.email} onChange={(event) => setCreditCustomerForm({ ...creditCustomerForm, email: event.target.value })} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input placeholder="Identificacion" value={creditCustomerForm.identification_number} onChange={(event) => setCreditCustomerForm({ ...creditCustomerForm, identification_number: event.target.value })} />
+                        <Input placeholder="Limite credito" type="number" value={creditCustomerForm.credit_limit} onChange={(event) => setCreditCustomerForm({ ...creditCustomerForm, credit_limit: event.target.value })} />
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
 
               <div className="grid grid-cols-2 gap-2">

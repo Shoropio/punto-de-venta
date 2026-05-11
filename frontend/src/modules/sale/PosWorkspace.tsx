@@ -132,12 +132,29 @@ export function PosWorkspace({
 
         <div className={isDarkTheme ? 'shrink-0 border-t border-[#4b4b4b] bg-[#2a2a2a]' : 'shrink-0 border-t border-stone-300 bg-stone-100'}>
           <div className={isDarkTheme ? 'grid gap-1.5 border-b border-[#3b3b3b] p-2 md:grid-cols-3' : 'grid gap-1.5 border-b border-stone-300 p-2 md:grid-cols-3'}>
-            {products.slice(0, 6).map((product) => (
-              <button key={product.id} className={isDarkTheme ? 'border border-[#4b4b4b] bg-[#242424] p-2 text-left hover:bg-[#303030]' : 'border border-stone-300 bg-white p-2 text-left hover:bg-stone-200'} onClick={() => onAdd(product)}>
-                <span className="block truncate text-[13px] font-semibold">{product.name}</span>
-                <span className="mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400">{product.sku} - {currency.format(product.salePrice)}</span>
-              </button>
-            ))}
+            {products.slice(0, 6).map((product) => {
+              const outOfStock = product.stock <= 0
+              return (
+                <button
+                  key={product.id}
+                  className={outOfStock
+                    ? isDarkTheme
+                      ? 'cursor-not-allowed border border-red-700/70 bg-red-950/40 p-2 text-left text-red-100 opacity-90'
+                      : 'cursor-not-allowed border border-red-300 bg-red-50 p-2 text-left text-red-800 opacity-90'
+                    : isDarkTheme
+                      ? 'border border-[#4b4b4b] bg-[#242424] p-2 text-left hover:bg-[#303030]'
+                      : 'border border-stone-300 bg-white p-2 text-left hover:bg-stone-200'}
+                  onClick={() => outOfStock ? onBlocked(`${product.name} no tiene stock disponible.`) : onAdd(product)}
+                  aria-disabled={outOfStock || undefined}
+                  title={outOfStock ? 'Sin stock disponible' : undefined}
+                >
+                  <span className="block truncate text-[13px] font-semibold">{product.name}</span>
+                  <span className={outOfStock ? 'mt-0.5 block text-[11px] font-bold text-red-600 dark:text-red-300' : 'mt-0.5 block text-[11px] text-slate-500 dark:text-slate-400'}>
+                    {product.sku} - {outOfStock ? 'Sin stock' : currency.format(product.salePrice)}
+                  </span>
+                </button>
+              )
+            })}
           </div>
           <div className="grid grid-cols-[1fr_200px] gap-3 p-3">
             <div className="space-y-1.5">
