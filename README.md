@@ -34,19 +34,28 @@
 | **Creditos** | Seguimiento de creditos y abonos de clientes |
 | **Promociones** | Codigos de descuento y promociones activas |
 | **Formas de pago** | Configuracion de medios de pago (efectivo, tarjeta, transferencia, credito) |
-| **Facturacion** | Generacion de facturas fiscales vinculadas a ventas |
+| **Facturacion** | Generacion de facturas fiscales v4.4 vinculadas a ventas, envio a Hacienda |
 | **Codigos de barras** | Generacion y asignacion de codigos a productos |
 | **Impresora** | Configuracion de impresion de tickets |
-| **Respaldos** | Respaldos manuales/programados, verificacion, descarga, restauracion y retencion |
+| **Respaldos** | Respaldos manuales/programados, Firestore, verificacion, descarga y restauracion |
 | **Reportes** | Resumen de ventas, productos mas vendidos, historial e inventario |
-| **Configuracion** | Datos del negocio, moneda, impuestos y catalogos (categorias, marcas, proveedores, sucursales) |
+| **Configuracion** | Datos del negocio, moneda, impuestos, WhatsApp, catalogos y sucursales |
+| **Contabilidad** | Plan de cuentas CR, asientos contables, balance de comprobacion, bancos |
+| **RRHH** | Empleados, registro de asistencia (clock-in/out con PIN) |
+| **Facturito AI** | Asistente de IA (Gemini 2.0 Flash Lite) para consultas del POS |
+| **E-commerce** | Sincronizacion con WooCommerce, Shopify y Mercado Libre |
+| **WhatsApp** | Envio de facturas por WhatsApp (Meta Cloud API + Baileys Gateway) |
 
 ## Stack
 
 - **Frontend:** React 19, Vite, TypeScript, Tailwind CSS v4, Zustand, React Query
-- **Backend:** Laravel 13, Sanctum
+- **Backend:** Laravel 13, Sanctum, DomPDF, barryvdh/laravel-dompdf
 - **Base de datos:** MySQL 8.4 (soporta PostgreSQL)
 - **Docker:** Docker Compose con MySQL, backend, scheduler y frontend
+- **IA:** Google Gemini 2.0 Flash Lite (Facturito)
+- **Nube:** Google Cloud Firestore (respaldos), Google OAuth (autenticacion)
+- **E-commerce:** WooCommerce REST API, Shopify Admin API, Mercado Libre API
+- **WhatsApp:** Meta Cloud API + Baileys Gateway (dual driver)
 
 ## Requisitos
 
@@ -55,6 +64,43 @@
 - Node.js 24+
 - npm
 - MySQL, PostgreSQL o SQLite para desarrollo local
+
+## Variables de entorno
+
+El backend requiere las siguientes variables en `.env`:
+
+```env
+# Google Gemini AI (Facturito)
+GEMINI_API_KEY=
+
+# Firestore / Firebase (respaldos en la nube)
+FIRESTORE_PROJECT_ID=
+FIRESTORE_API_KEY=
+
+# Google OAuth (sign-in)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# WhatsApp Meta Cloud API
+META_WA_PHONE_NUMBER_ID=
+META_WA_ACCESS_TOKEN=
+
+# WhatsApp Baileys Gateway
+BAILEYS_ENDPOINT=http://localhost:3001
+
+# WooCommerce
+WOO_URL=
+WOO_KEY=
+WOO_SECRET=
+
+# Shopify
+SHOPIFY_URL=
+SHOPIFY_TOKEN=
+
+# Mercado Libre
+ML_ACCESS_TOKEN=
+ML_SITE_ID=MCR
+```
 
 ## Levantar en desarrollo
 
