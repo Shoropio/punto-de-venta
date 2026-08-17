@@ -17,13 +17,20 @@ use App\Http\Controllers\Api\InvoiceController;
 use App\Http\Controllers\Api\InventoryController;
 use App\Http\Controllers\Api\PaymentMethodController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\ProductImportController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\RefundController;
 use App\Http\Controllers\Api\ReportController;
 use App\Http\Controllers\Api\SaleController;
 use App\Http\Controllers\Api\SettingController;
+use App\Http\Controllers\Api\AccountingController;
+use App\Http\Controllers\Api\HrController;
+use App\Http\Controllers\Api\FacturitoController;
+use App\Http\Controllers\Api\GoogleAuthController;
+use App\Http\Controllers\Api\WhatsAppController;
 
 Route::post('/auth/login', [AuthController::class, 'login']);
+Route::post('/auth/google', [GoogleAuthController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', fn (Request $request) => $request->user()->load(['role.permissions', 'branch']));
@@ -110,8 +117,41 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/backups', [BackupController::class, 'index']);
     Route::post('/backups', [BackupController::class, 'store']);
     Route::post('/backups/schedule', [BackupController::class, 'schedule']);
+    Route::post('/backups/cloud-sync', [BackupController::class, 'cloudSync']);
     Route::get('/backups/{backup}', [BackupController::class, 'download']);
     Route::post('/backups/{backup}/verify', [BackupController::class, 'verify']);
     Route::post('/backups/{backup}/restore', [BackupController::class, 'restore']);
     Route::delete('/backups/{backup}', [BackupController::class, 'destroy']);
+
+    // Product CSV Import
+    Route::get('/products/import/template', [ProductImportController::class, 'template']);
+    Route::post('/products/import', [ProductImportController::class, 'import']);
+
+    // Accounting & Banking
+    Route::get('/accounting/accounts', [AccountingController::class, 'accounts']);
+    Route::post('/accounting/accounts', [AccountingController::class, 'storeAccount']);
+    Route::get('/accounting/entries', [AccountingController::class, 'entries']);
+    Route::get('/accounting/entries/{entry}', [AccountingController::class, 'entryDetail']);
+    Route::get('/accounting/trial-balance', [AccountingController::class, 'trialBalance']);
+    Route::get('/accounting/bank-accounts', [AccountingController::class, 'bankAccounts']);
+    Route::post('/accounting/bank-accounts', [AccountingController::class, 'storeBankAccount']);
+    Route::post('/accounting/bank-accounts/{bankAccount}/import', [AccountingController::class, 'importStatement']);
+    Route::get('/accounting/statement-lines', [AccountingController::class, 'statementLines']);
+    Route::post('/accounting/statement-lines/{line}/reconcile', [AccountingController::class, 'reconcileLine']);
+
+    // HR – Employees & Attendance
+    Route::get('/hr/employees', [HrController::class, 'employees']);
+    Route::post('/hr/employees', [HrController::class, 'storeEmployee']);
+    Route::put('/hr/employees/{employee}', [HrController::class, 'updateEmployee']);
+    Route::post('/hr/clock', [HrController::class, 'clockIn']);
+    Route::get('/hr/attendances', [HrController::class, 'attendances']);
+
+    // WhatsApp Configuration
+    Route::get('/whatsapp/settings', [WhatsAppController::class, 'settings']);
+    Route::post('/whatsapp/settings', [WhatsAppController::class, 'saveSettings']);
+    Route::post('/whatsapp/send-invoice', [WhatsAppController::class, 'sendInvoice']);
+
+    // Facturito AI Assistant
+    Route::post('/facturito/chat', [FacturitoController::class, 'chat']);
 });
+

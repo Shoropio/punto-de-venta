@@ -10,6 +10,7 @@ use App\Models\Sale;
 use App\Services\AccessControl;
 use App\Services\ActivityLogger;
 use App\Services\StockService;
+use App\Services\Accounting\DoubleEntryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -21,7 +22,7 @@ class RefundController extends Controller
         return Refund::with(['sale', 'user'])->latest()->paginate($request->integer('per_page', 20));
     }
 
-    public function store(Request $request, StockService $stockService, AccessControl $accessControl, ActivityLogger $activityLogger)
+    public function store(Request $request, StockService $stockService, AccessControl $accessControl, ActivityLogger $activityLogger, DoubleEntryService $doubleEntry)
     {
         $accessControl->authorize($request->user(), 'refunds.create');
 
@@ -30,7 +31,7 @@ class RefundController extends Controller
             'reason' => ['required', 'string', 'max:220'],
         ]);
 
-        return DB::transaction(function () use ($data, $request, $stockService, $activityLogger) {
+        return DB::transaction(function () use ($data, $request, $stockService, $activityLogger, $doubleEntry) {
             $sale = Sale::with('items.product')->lockForUpdate()->findOrFail($data['sale_id']);
 
             if (! in_array($sale->status, ['completed', 'partial_refund'], true)) {
@@ -63,6 +64,12 @@ class RefundController extends Controller
             CashSession::whereKey($sale->cash_session_id)
                 ->where('status', 'open')
                 ->decrement('expected_amount', (float) $sale->total);
+
+            try {
+                $doubleEntry->recordRefund($refund);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Refund accounting entry failed', ['refund_id' => $refund->id, 'error' => $e->getMessage()]);
+            }
 
             $activityLogger->log($request->user(), 'refund.created', $refund, [
                 'sale_id' => $sale->id,

@@ -44,4 +44,29 @@ return [
         ],
     ],
 
+    'firestore' => [
+        'project_id' => env('FIRESTORE_PROJECT_ID'),
+        'api_key' => env('FIRESTORE_API_KEY'),
+    ],
+
+    'gemini' => [
+        'api_key' => env('GEMINI_API_KEY'),
+    ],
+
+    'ecommerce' => [
+        'woocommerce' => [
+            'url' => env('WOO_URL'),
+            'key' => env('WOO_KEY'),
+            'secret' => env('WOO_SECRET'),
+        ],
+        'shopify' => [
+            'url' => env('SHOPIFY_URL'),
+            'token' => env('SHOPIFY_TOKEN'),
+        ],
+        'mercadolibre' => [
+            'access_token' => env('ML_ACCESS_TOKEN'),
+            'site_id' => env('ML_SITE_ID', 'MCR'),
+        ],
+    ],
+
 ];

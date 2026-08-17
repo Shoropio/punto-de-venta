@@ -11,6 +11,7 @@ use App\Services\Hacienda\HaciendaApiClient;
 use App\Services\Hacienda\HaciendaDocumentNumberService;
 use App\Services\Hacienda\HaciendaXmlGenerator;
 use App\Services\Hacienda\HaciendaXmlSigner;
+use App\Services\Notifications\WhatsAppService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
@@ -21,6 +22,7 @@ class InvoiceController extends Controller
         private readonly HaciendaXmlGenerator $xmlGenerator,
         private readonly HaciendaXmlSigner $xmlSigner,
         private readonly HaciendaApiClient $apiClient,
+        private readonly WhatsAppService $whatsapp,
     )
     {
     }
@@ -171,6 +173,37 @@ class InvoiceController extends Controller
             }
         }
 
-        return $invoice->fresh(['sale', 'customer']);
+        $invoice = $invoice->fresh(['sale', 'customer']);
+
+        if (in_array($invoice->hacienda_status, ['accepted', 'aceptado'])) {
+            $this->sendWhatsAppNotification($invoice);
+        }
+
+        return $invoice;
+    }
+
+    private function sendWhatsAppNotification(Invoice $invoice): void
+    {
+        try {
+            $customer = $invoice->customer;
+            $phone = $customer?->phone;
+
+            if (! $phone) {
+                return;
+            }
+
+            $this->whatsapp->sendInvoiceNotification(
+                $phone,
+                $customer->name,
+                $invoice->numero_consecutivo,
+                (float) ($invoice->sale->total ?? 0),
+                null,
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('WhatsApp: Failed to send invoice notification', [
+                'invoice_id' => $invoice->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }

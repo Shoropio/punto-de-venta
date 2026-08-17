@@ -38,15 +38,21 @@ class DatabaseSeeder extends Seeder
             ['name' => 'hacienda.manage', 'module' => 'hacienda', 'description' => 'Gestionar Hacienda'],
             ['name' => 'backups.manage', 'module' => 'settings', 'description' => 'Gestionar respaldos'],
             ['name' => 'settings.manage', 'module' => 'settings', 'description' => 'Administrar configuracion'],
+            ['name' => 'accounting.manage', 'module' => 'accounting', 'description' => 'Gestionar contabilidad y bancos'],
+            ['name' => 'hr.manage', 'module' => 'hr', 'description' => 'Gestionar empleados y asistencia'],
         ])->map(fn ($permission) => Permission::firstOrCreate(['name' => $permission['name']], $permission));
 
         $admin = Role::firstOrCreate(['name' => 'admin'], ['display_name' => 'Administrador']);
         $manager = Role::firstOrCreate(['name' => 'gerente'], ['display_name' => 'Gerente']);
         $cashier = Role::firstOrCreate(['name' => 'cajero'], ['display_name' => 'Cajero']);
+        $accountant = Role::firstOrCreate(['name' => 'contador'], ['display_name' => 'Contador']);
+        $hr = Role::firstOrCreate(['name' => 'rrhh'], ['display_name' => 'Recursos Humanos']);
 
         $admin->permissions()->sync($permissions->pluck('id'));
         $manager->permissions()->sync($permissions->whereIn('module', ['pos', 'sales', 'cash', 'inventory', 'reports'])->pluck('id'));
         $cashier->permissions()->sync($permissions->whereIn('name', ['pos.sell', 'cash.open'])->pluck('id'));
+        $accountant->permissions()->sync($permissions->whereIn('module', ['accounting', 'hacienda', 'reports'])->pluck('id'));
+        $hr->permissions()->sync($permissions->whereIn('module', ['hr'])->pluck('id'));
 
         $branch = Branch::firstOrCreate(['code' => 'MAIN'], ['name' => 'Sucursal Principal']);
         CashRegister::firstOrCreate(['code' => 'CAJA-01'], ['branch_id' => $branch->id, 'name' => 'Caja 01']);
@@ -155,5 +161,7 @@ class DatabaseSeeder extends Seeder
                 'is_active' => true,
             ]);
         }
+
+        $this->call(AccountingCatalogSeeder::class);
     }
 }

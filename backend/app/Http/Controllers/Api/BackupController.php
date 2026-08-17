@@ -7,6 +7,7 @@ use App\Models\Setting;
 use App\Services\AccessControl;
 use App\Services\ActivityLogger;
 use App\Services\BackupService;
+use App\Services\FirestoreBackupService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -88,6 +89,16 @@ class BackupController extends Controller
             'schedule' => $data,
             'command' => 'php artisan backups:run-scheduled',
         ];
+    }
+
+    public function cloudSync(Request $request, AccessControl $accessControl, ActivityLogger $activityLogger, FirestoreBackupService $firestoreService)
+    {
+        $accessControl->authorize($request->user(), 'backups.manage');
+
+        $result = $firestoreService->syncDatabase();
+        $activityLogger->log($request->user(), 'backup.cloud_sync', null, $result);
+
+        return response()->json($result);
     }
 
     public function destroy(Request $request, string $backup, AccessControl $accessControl, ActivityLogger $activityLogger)
