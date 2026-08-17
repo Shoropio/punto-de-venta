@@ -16,6 +16,8 @@ export type ModuleKey =
   | 'backups'
   | 'settings'
   | 'admin'
+  | 'accounting'
+  | 'hr'
 
 export type AppTheme = 'dark' | 'light'
 export type ToastTone = 'success' | 'error' | 'info'

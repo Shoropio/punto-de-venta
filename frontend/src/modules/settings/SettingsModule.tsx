@@ -1,4 +1,4 @@
-import { Edit3, Landmark, Plus, Printer, Settings, Trash2 } from 'lucide-react'
+import { Edit3, Landmark, MessageCircle, Plus, Printer, Settings, Trash2 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
@@ -6,6 +6,14 @@ import type { BranchForm, HaciendaSettingRow, NamedCatalog, SettingRow } from '.
 import { Empty } from '../../components/shared/Empty'
 import { SelectBox } from '../../components/shared/SelectBox'
 import { translateSettingKey, translateSettingValue } from '../../lib/pos-utils'
+
+type WhatsAppSettings = {
+  driver: 'meta' | 'baileys'
+  phone_number_id: string
+  access_token: string
+  baileys_endpoint: string
+  is_active: boolean
+}
 
 export function SettingsModule({
   businessName,
@@ -17,6 +25,7 @@ export function SettingsModule({
   loading,
   hasReceipt,
   haciendaSetting,
+  whatsappSettings,
   onBusinessName,
   onCurrencyCode,
   onDefaultTax,
@@ -29,6 +38,8 @@ export function SettingsModule({
   onHaciendaChange,
   onSaveHacienda,
   onPrint,
+  onWhatsappChange,
+  onSaveWhatsapp,
 }: {
   businessName: string
   currencyCode: string
@@ -39,6 +50,7 @@ export function SettingsModule({
   loading: boolean
   hasReceipt: boolean
   haciendaSetting: HaciendaSettingRow
+  whatsappSettings: WhatsAppSettings
   onBusinessName: (value: string) => void
   onCurrencyCode: (value: string) => void
   onDefaultTax: (value: string) => void
@@ -51,6 +63,8 @@ export function SettingsModule({
   onHaciendaChange: (value: HaciendaSettingRow) => void
   onSaveHacienda: () => void
   onPrint: () => void
+  onWhatsappChange: (value: WhatsAppSettings) => void
+  onSaveWhatsapp: () => void
 }) {
   return (
     <div className="space-y-4">
@@ -77,6 +91,40 @@ export function SettingsModule({
           </Button>
         </Card>
       </div>
+
+      <Card className="p-4">
+        <h2 className="mb-3 flex items-center gap-2 text-lg font-bold"><MessageCircle size={20} className="text-[#25D366]" /> WhatsApp</h2>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Driver</label>
+            <SelectBox value={whatsappSettings.driver} onChange={(e) => onWhatsappChange({ ...whatsappSettings, driver: e.target.value as 'meta' | 'baileys' })}>
+              <option value="meta">Meta Cloud API</option>
+              <option value="baileys">Baileys Gateway (QR)</option>
+            </SelectBox>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-500">Estado</label>
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${whatsappSettings.is_active ? 'bg-[#25D366]' : 'bg-slate-300'}`} />
+              <span className="text-sm">{whatsappSettings.is_active ? 'Activo' : 'Inactivo'}</span>
+            </div>
+          </div>
+        </div>
+        {whatsappSettings.driver === 'meta' && (
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <Input placeholder="Phone Number ID" value={whatsappSettings.phone_number_id} onChange={(e) => onWhatsappChange({ ...whatsappSettings, phone_number_id: e.target.value })} />
+            <Input type="password" placeholder="Access Token" value={whatsappSettings.access_token} onChange={(e) => onWhatsappChange({ ...whatsappSettings, access_token: e.target.value })} />
+          </div>
+        )}
+        {whatsappSettings.driver === 'baileys' && (
+          <div className="mt-3">
+            <Input placeholder="Baileys Gateway Endpoint" value={whatsappSettings.baileys_endpoint} onChange={(e) => onWhatsappChange({ ...whatsappSettings, baileys_endpoint: e.target.value })} />
+          </div>
+        )}
+        <Button className="mt-3" onClick={onSaveWhatsapp} disabled={loading}>
+          <Settings size={18} /> Guardar WhatsApp
+        </Button>
+      </Card>
 
       <Card className="p-4">
         <h2 className="mb-3 flex items-center gap-2 text-lg font-bold"><Landmark size={20} /> Hacienda Costa Rica v4.4</h2>

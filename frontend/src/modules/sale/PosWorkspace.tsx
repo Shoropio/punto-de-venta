@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from 'react'
 import { Banknote, CreditCard, Lock, MessageSquare, Minus, MoreHorizontal, PackageSearch, Percent, Plus, ReceiptText, RotateCcw, Search, Trash2, UserRound, X } from 'lucide-react'
 import { currency } from '../../lib/utils'
 import type { PaymentMethod } from '../../types'
@@ -17,6 +18,7 @@ export function PosWorkspace({
   selectedCustomerName,
   cashSessionOpen,
   paymentMethod,
+  selectedCartItemId,
   onAdd,
   onRefresh,
   onFocusSearch,
@@ -27,6 +29,7 @@ export function PosWorkspace({
   onCancelOrder,
   onSetPayment,
   onUpdateQuantity,
+  onSelectCartItem,
   onIncrementLast,
   onApplyDiscount,
   onToggleCashSession,
@@ -51,6 +54,7 @@ export function PosWorkspace({
   selectedCustomerName?: string
   cashSessionOpen: boolean
   paymentMethod: PaymentMethod
+  selectedCartItemId?: number | null
   onAdd: (product: Product) => void
   onRefresh: () => void
   onFocusSearch: () => void
@@ -61,6 +65,7 @@ export function PosWorkspace({
   onCancelOrder: () => void
   onSetPayment: (method: PaymentMethod) => void
   onUpdateQuantity: (productId: number, quantity: number) => void
+  onSelectCartItem: (productId: number | null) => void
   onIncrementLast: () => void
   onApplyDiscount: () => void
   onToggleCashSession: () => void
@@ -84,11 +89,42 @@ export function PosWorkspace({
     onRefresh()
     onFocusSearch()
   }
+  const handleCartKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (cart.length === 0) return
+
+    const selectedIndex = Math.max(0, cart.findIndex((item) => item.id === selectedCartItemId))
+    const selectedItem = cart[selectedIndex] ?? cart[0]
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      const direction = event.key === 'ArrowDown' ? 1 : -1
+      const nextIndex = Math.min(cart.length - 1, Math.max(0, selectedIndex + direction))
+      onSelectCartItem(cart[nextIndex]?.id ?? null)
+      return
+    }
+
+    if (event.key === 'ArrowRight' || event.key === '+') {
+      event.preventDefault()
+      onUpdateQuantity(selectedItem.id, selectedItem.quantity + 1)
+      return
+    }
+
+    if (event.key === 'ArrowLeft' || event.key === '-') {
+      event.preventDefault()
+      onUpdateQuantity(selectedItem.id, selectedItem.quantity - 1)
+      return
+    }
+
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault()
+      onRemove(selectedItem.id)
+    }
+  }
 
   return (
     <div className={isDarkTheme ? 'grid min-h-0 flex-1 overflow-hidden bg-[#202020] text-white xl:grid-cols-[minmax(0,1fr)_536px]' : 'grid min-h-0 flex-1 overflow-hidden bg-stone-50 text-stone-950 xl:grid-cols-[minmax(0,1fr)_536px]'}>
       <section className={isDarkTheme ? 'flex min-h-0 min-w-0 flex-col border-r border-[#4b4b4b]' : 'flex min-h-0 min-w-0 flex-col border-r border-stone-300'}>
-        <div className={isDarkTheme ? 'grid grid-cols-[minmax(260px,1fr)_100px_108px_120px_48px] border-b border-[#4b4b4b] bg-[#1b1b1b] px-3 py-2 text-xs font-bold' : 'grid grid-cols-[minmax(260px,1fr)_100px_108px_120px_48px] border-b border-stone-300 bg-stone-200 px-3 py-2 text-xs font-bold'}>
+        <div className={isDarkTheme ? 'grid grid-cols-[minmax(260px,1fr)_100px_108px_128px_40px] border-b border-[#4b4b4b] bg-[#1b1b1b] px-3 py-2 text-xs font-bold' : 'grid grid-cols-[minmax(260px,1fr)_100px_108px_128px_40px] border-b border-stone-300 bg-stone-200 px-3 py-2 text-xs font-bold'}>
           <span>Producto</span>
           <span className="text-right">Cantidad</span>
           <span className="text-right">Precio</span>
@@ -96,15 +132,29 @@ export function PosWorkspace({
           <span />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto">
+        <div className="min-h-0 flex-1 overflow-auto outline-none" tabIndex={0} onKeyDown={handleCartKeyDown} aria-label="Carrito de venta">
           {cart.length === 0 ? (
             <div className={isDarkTheme ? 'flex h-full min-h-[240px] flex-col items-center justify-center px-6 text-center text-stone-400' : 'flex h-full min-h-[240px] flex-col items-center justify-center px-6 text-center text-stone-500'}>
               <strong className={isDarkTheme ? 'text-2xl text-stone-300' : 'text-2xl text-stone-600'}>No hay articulos</strong>
               <span className="mt-2 max-w-2xl text-sm">Busca, escanea o selecciona un producto para iniciar la venta.</span>
             </div>
           ) : (
-            cart.map((item) => (
-              <div key={item.id} className={isDarkTheme ? 'grid grid-cols-[minmax(260px,1fr)_100px_108px_120px_48px] items-center border-b border-[#333] px-3 py-2 text-[13px]' : 'grid grid-cols-[minmax(260px,1fr)_100px_108px_120px_48px] items-center border-b border-stone-200 px-3 py-2 text-[13px]'}>
+            cart.map((item) => {
+              const selected = item.id === selectedCartItemId
+              return (
+              <div
+                key={item.id}
+                tabIndex={-1}
+                aria-current={selected ? 'true' : undefined}
+                onClick={(event) => {
+                  onSelectCartItem(item.id)
+                  const cartContainer = event.currentTarget.parentElement as HTMLElement | null
+                  cartContainer?.focus()
+                }}
+                className={isDarkTheme
+                  ? `grid grid-cols-[minmax(260px,1fr)_100px_108px_128px_40px] items-center border-b px-3 py-2 text-[13px] transition ${selected ? 'border-[#0088cc] bg-[#123447]' : 'border-[#333] hover:bg-[#252525]'}`
+                  : `grid grid-cols-[minmax(260px,1fr)_100px_108px_128px_40px] items-center border-b px-3 py-2 text-[13px] transition ${selected ? 'border-[#0088cc] bg-sky-50' : 'border-stone-200 hover:bg-stone-100'}`}
+              >
                 <div>
                   <p className="font-semibold">{item.name}</p>
                   <p className={isDarkTheme ? 'text-[11px] text-stone-500' : 'text-[11px] text-stone-500'}>{item.sku}</p>
@@ -121,12 +171,13 @@ export function PosWorkspace({
                   </div>
                 </div>
                 <span className="text-right">{currency.format(item.salePrice)}</span>
-                <span className="text-right font-bold">{currency.format(item.salePrice * item.quantity - item.discount)}</span>
-                <button className={isDarkTheme ? 'grid h-8 place-items-center text-stone-400 hover:bg-red-900/40 hover:text-white' : 'grid h-8 place-items-center text-stone-500 hover:bg-red-50 hover:text-red-700'} onClick={() => onRemove(item.id)} aria-label={`Quitar ${item.name}`}>
+                <span className="pr-3 text-right font-bold">{currency.format(item.salePrice * item.quantity - item.discount)}</span>
+                <button className={isDarkTheme ? 'ml-auto grid h-7 w-7 place-items-center text-stone-400 hover:bg-red-900/40 hover:text-white' : 'ml-auto grid h-7 w-7 place-items-center text-stone-500 hover:bg-red-50 hover:text-red-700'} onClick={() => onRemove(item.id)} aria-label={`Quitar ${item.name}`}>
                   <Trash2 size={14} />
                 </button>
               </div>
-            ))
+              )
+            })
           )}
         </div>
 
@@ -178,19 +229,21 @@ export function PosWorkspace({
         </div>
       </section>
 
-      <aside className={isDarkTheme ? 'flex min-h-0 flex-col gap-1 overflow-y-auto bg-[#2d2d2d] p-1 print:hidden' : 'flex min-h-0 flex-col gap-1 overflow-y-auto bg-stone-200 p-1 print:hidden'}>
+      <aside className={isDarkTheme ? 'flex min-h-0 flex-col gap-1 overflow-y-auto bg-[#2d2d2d] p-1 print:hidden' : 'flex min-h-0 flex-col gap-1 overflow-y-auto bg-stone-100 p-1 print:hidden'}>
         <div className="grid shrink-0 grid-cols-4 auto-rows-[68px] gap-1">
-          <PosAction icon={X} label="Eliminar" onClick={onRemoveLast} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay articulos para eliminar.')} muted />
-          <PosAction icon={Search} label="Buscar" shortcut="F3" onClick={handleSearch} />
-          <PosAction icon={Plus} label="Cantidad" shortcut="F4" onClick={onIncrementLast} disabled={cart.length === 0} onBlocked={() => onBlocked('Agrega un producto antes de cambiar cantidad.')} />
-          <PosAction icon={ReceiptText} label="Nueva venta" shortcut="F8" onClick={onClear} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay una venta activa para limpiar.')} />
+          <PosAction icon={X} label="Eliminar" isDarkTheme={isDarkTheme} onClick={onRemoveLast} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay articulos para eliminar.')} muted />
+          <PosAction icon={Search} label="Buscar" isDarkTheme={isDarkTheme} shortcut="F3" onClick={handleSearch} />
+          <PosAction icon={Plus} label="Cantidad" isDarkTheme={isDarkTheme} shortcut="F4" onClick={onIncrementLast} disabled={cart.length === 0} onBlocked={() => onBlocked('Agrega un producto antes de cambiar cantidad.')} />
+          <PosAction icon={ReceiptText} label="Nueva venta" isDarkTheme={isDarkTheme} shortcut="F8" onClick={onClear} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay una venta activa para limpiar.')} />
         </div>
 
         <div className="grid shrink-0 grid-cols-3 gap-1">
           {(['cash', 'card', 'mixed'] as const).map((method) => (
             <button
               key={method}
-              className={`h-12 border border-[#575757] bg-[#1f1f1f] text-xs font-semibold text-white hover:bg-[#333] ${paymentMethod === method ? 'border-b-2 border-b-[#0088cc]' : ''}`}
+              className={isDarkTheme
+                ? `h-12 border border-[#575757] bg-[#1f1f1f] text-xs font-semibold text-white hover:bg-[#333] ${paymentMethod === method ? 'border-b-2 border-b-[#0088cc]' : ''}`
+                : `h-12 border border-stone-300 bg-white text-xs font-semibold text-stone-900 hover:bg-stone-100 ${paymentMethod === method ? 'border-b-2 border-b-[#0088cc] bg-sky-50 text-[#005f8f]' : ''}`}
               onClick={() => onSetPayment(method)}
             >
               {methodLabels[method]}
@@ -198,17 +251,17 @@ export function PosWorkspace({
           ))}
         </div>
 
-        <div className={isDarkTheme ? 'min-h-0 flex-1 border border-[#3b3b3b] bg-[#252525]' : 'min-h-0 flex-1 border border-stone-300 bg-stone-100'} />
+        <div className={isDarkTheme ? 'min-h-0 flex-1 border border-[#3b3b3b] bg-[#252525]' : 'min-h-0 flex-1 border border-stone-200 bg-white'} />
 
         <div className="grid shrink-0 grid-cols-4 auto-rows-[68px] gap-1">
-          <PosAction icon={Banknote} label={cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'} onClick={onToggleCashSession} />
-          <PosAction icon={Percent} label="Descuento" shortcut="F2" onClick={onApplyDiscount} disabled={cart.length === 0} onBlocked={() => onBlocked('Agrega productos antes de aplicar descuento.')} />
-          <PosAction icon={UserRound} label="Cliente" onClick={onOpenCustomers} />
-          <PosAction icon={RotateCcw} label="Devolución" onClick={onOpenRefunds} />
+          <PosAction icon={Banknote} label={cashSessionOpen ? 'Cerrar caja' : 'Abrir caja'} isDarkTheme={isDarkTheme} onClick={onToggleCashSession} />
+          <PosAction icon={Percent} label="Descuento" isDarkTheme={isDarkTheme} shortcut="F2" onClick={onApplyDiscount} disabled={cart.length === 0} onBlocked={() => onBlocked('Agrega productos antes de aplicar descuento.')} />
+          <PosAction icon={UserRound} label="Cliente" isDarkTheme={isDarkTheme} onClick={onOpenCustomers} />
+          <PosAction icon={RotateCcw} label="Devolución" isDarkTheme={isDarkTheme} onClick={onOpenRefunds} />
 
-          <PosAction icon={MessageSquare} label="Nota" onClick={() => onMessage('Comentario agregado a la orden actual.')} />
-          <PosAction icon={PackageSearch} label="En espera" shortcut="F9" onClick={onSaveSale} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay articulos para guardar.')} />
-          <PosAction icon={MoreHorizontal} label="Recuperar" onClick={onRestoreSale} />
+          <PosAction icon={MessageSquare} label="Nota" isDarkTheme={isDarkTheme} onClick={() => onMessage('Comentario agregado a la orden actual.')} />
+          <PosAction icon={PackageSearch} label="En espera" isDarkTheme={isDarkTheme} shortcut="F9" onClick={onSaveSale} disabled={cart.length === 0} onBlocked={() => onBlocked('No hay articulos para guardar.')} />
+          <PosAction icon={MoreHorizontal} label="Recuperar" isDarkTheme={isDarkTheme} onClick={onRestoreSale} />
           <button
             className="row-span-2 border border-[#0088cc] bg-[#0088cc] text-sm font-bold text-white hover:bg-[#0077b3] aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             aria-disabled={loading || !cashSessionOpen || cart.length === 0 || undefined}
@@ -224,8 +277,8 @@ export function PosWorkspace({
             {loading ? 'Procesando...' : 'Pago'}
           </button>
 
-          <PosAction icon={Lock} label="Bloquear" onClick={onLock} />
-          <PosAction icon={CreditCard} label="Transferir" shortcut="F7" active={paymentMethod === 'transfer'} onClick={() => onSetPayment('transfer')} />
+          <PosAction icon={Lock} label="Bloquear" isDarkTheme={isDarkTheme} onClick={onLock} />
+          <PosAction icon={CreditCard} label="Transferir" isDarkTheme={isDarkTheme} shortcut="F7" active={paymentMethod === 'transfer'} onClick={() => onSetPayment('transfer')} />
           <button
             className="border border-red-700 bg-red-700 text-xs font-semibold text-white hover:bg-red-600 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
             aria-disabled={cart.length === 0 || undefined}

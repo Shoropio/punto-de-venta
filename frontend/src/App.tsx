@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Archive, BadgeDollarSign, Banknote, Barcode, BarChart3, Boxes, CreditCard, LayoutDashboard, Loader2, LogOut, Maximize2, Minimize2, Moon, Printer, ReceiptText, Search, Settings, ShieldCheck, Sun, Tags, UserCog, UserPlus, Users, WalletCards } from 'lucide-react'
+import { Archive, BadgeDollarSign, Banknote, Barcode, BarChart3, Boxes, CreditCard, LayoutDashboard, Loader2, LogOut, Maximize2, Minimize2, Moon, Printer, ReceiptText, Search, Settings, ShieldCheck, Sun, Tags, UserCog, UserPlus, Users, WalletCards, MessageCircle, BookOpen, Clock } from 'lucide-react'
 import { Button } from './components/ui/button'
 import { Card } from './components/ui/card'
 import { Input } from './components/ui/input'
@@ -19,6 +19,9 @@ import { SettingsModule } from './modules/settings'
 import { BackupsModule } from './modules/backups'
 import { AdminModule } from './modules/admin'
 import { DashboardModule } from './modules/dashboard'
+import { AccountingModule } from './modules/accounting/AccountingModule'
+import { HrModule } from './modules/hr/HrModule'
+import { FacturitoChat } from './components/shared/FacturitoChat'
 import { api, API_URL } from './lib/api'
 import { configureCurrency, currency } from './lib/utils'
 import { getToastTone, roundMoney } from './lib/pos-utils'
@@ -48,6 +51,8 @@ const nav: NavItem[] = [
   { key: 'promotions', label: 'Promociones', icon: Tags },
   { key: 'payments', label: 'Formas de pago', icon: CreditCard },
   { key: 'invoices', label: 'Factura', icon: ReceiptText },
+  { key: 'accounting', label: 'Contabilidad', icon: BookOpen },
+  { key: 'hr', label: 'RRHH', icon: Clock },
   { key: 'barcodes', label: 'Codigos', icon: Barcode },
   { key: 'printer', label: 'Impresora', icon: Printer },
   { key: 'backups', label: 'Respaldos', icon: Archive },
@@ -66,6 +71,8 @@ const modulePermissions: Record<ModuleKey, string[]> = {
   promotions: ['inventory.manage', 'settings.manage'],
   payments: ['settings.manage'],
   invoices: ['hacienda.manage'],
+  accounting: ['accounting.manage'],
+  hr: ['hr.manage'],
   barcodes: ['inventory.manage'],
   printer: ['settings.manage'],
   backups: ['backups.manage'],
@@ -107,6 +114,29 @@ function App() {
   const [permissions, setPermissions] = useState<PermissionRow[]>([])
   const [adminUsers, setAdminUsers] = useState<AdminUserRow[]>([])
   const [activityLogs, setActivityLogs] = useState<ActivityLogRow[]>([])
+  const [accountingAccounts, setAccountingAccounts] = useState<Array<{ id: number; code: string; name: string; type: string; is_active: boolean }>>([])
+  const [accountingEntries, setAccountingEntries] = useState<Array<{ id: number; description: string; entry_date: string; reference?: string }>>([])
+  const [entryDetail, setEntryDetail] = useState<{ entry: { id: number; description: string; entry_date: string }; items: Array<{ id: number; account_id: number; debit: number; credit: number; description?: string; code: string; account_name: string; account_type: string }> } | null>(null)
+  const [trialBalance, setTrialBalance] = useState<{ rows: Array<{ code: string; name: string; type: string; total_debit: number; total_credit: number; balance: number }>; total_debit: number; total_credit: number; balanced: boolean } | null>(null)
+  const [bankAccounts, setBankAccounts] = useState<Array<{ id: number; bank_name: string; account_number?: string; account_type?: string; currency: string; balance: number; is_active: boolean }>>([])
+  const [statementLines, setStatementLines] = useState<Array<{ id: number; bank_account_id: number; transaction_date: string; description: string; amount: number; transaction_type: string; reference?: string; is_reconciled: boolean }>>([])
+  const [newAccountCode, setNewAccountCode] = useState('')
+  const [newAccountName, setNewAccountName] = useState('')
+  const [newAccountType, setNewAccountType] = useState('')
+  const [newBankName, setNewBankName] = useState('')
+  const [newBankNumber, setNewBankNumber] = useState('')
+  const [newBankType, setNewBankType] = useState('')
+  const [hrEmployees, setHrEmployees] = useState<Array<{ id: number; name: string; identification?: string; position?: string; department?: string; phone?: string; email?: string; hire_date?: string; pin?: string; is_active: boolean }>>([])
+  const [hrAttendances, setHrAttendances] = useState<Array<{ id: number; employee_id: number; employee_name: string; department?: string; work_date: string; clock_in?: string; clock_out?: string; notes?: string }>>([])
+  const [newEmployeeName, setNewEmployeeName] = useState('')
+  const [newEmployeeId, setNewEmployeeId] = useState('')
+  const [newEmployeePosition, setNewEmployeePosition] = useState('')
+  const [newEmployeeDepartment, setNewEmployeeDepartment] = useState('')
+  const [newEmployeePin, setNewEmployeePin] = useState('')
+  const [attendancePin, setAttendancePin] = useState('')
+  const [clockResult, setClockResult] = useState<string | null>(null)
+  const [whatsappSettings, setWhatsappSettings] = useState<{ driver: 'meta' | 'baileys'; phone_number_id: string; access_token: string; baileys_endpoint: string; is_active: boolean }>({ driver: 'meta', phone_number_id: '', access_token: '', baileys_endpoint: '', is_active: false })
+  const [facturitoOpen, setFacturitoOpen] = useState(false)
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm)
   const [customerForm, setCustomerForm] = useState<CustomerForm>(emptyCustomerForm)
   const [branchForm, setBranchForm] = useState<BranchForm>(emptyBranchForm)
@@ -308,6 +338,35 @@ function App() {
     setActivityLogs(logsResponse.data)
   }, [])
 
+  const loadAccounting = useCallback(async () => {
+    const [accountsResponse, entriesResponse, trialBalanceResponse, bankResponse, linesResponse] = await Promise.all([
+      api<Array<{ id: number; code: string; name: string; type: string; is_active: boolean }>>('/accounting/accounts'),
+      api<{ data: Array<{ id: number; description: string; entry_date: string; reference?: string }> }>('/accounting/entries?per_page=50'),
+      api<{ rows: Array<{ code: string; name: string; type: string; total_debit: number; total_credit: number; balance: number }>; total_debit: number; total_credit: number; balanced: boolean }>('/accounting/trial-balance'),
+      api<Array<{ id: number; bank_name: string; account_number?: string; account_type?: string; currency: string; balance: number; is_active: boolean }>>('/accounting/bank-accounts'),
+      api<{ data: Array<{ id: number; bank_account_id: number; transaction_date: string; description: string; amount: number; transaction_type: string; reference?: string; is_reconciled: boolean }> }>('/accounting/statement-lines?per_page=50'),
+    ])
+    setAccountingAccounts(accountsResponse)
+    setAccountingEntries(entriesResponse.data)
+    setTrialBalance(trialBalanceResponse)
+    setBankAccounts(bankResponse)
+    setStatementLines(linesResponse.data)
+  }, [])
+
+  const loadHr = useCallback(async () => {
+    const [employeesResponse, attendancesResponse] = await Promise.all([
+      api<Array<{ id: number; name: string; identification?: string; position?: string; department?: string; phone?: string; email?: string; hire_date?: string; pin?: string; is_active: boolean }>>('/hr/employees'),
+      api<{ data: Array<{ id: number; employee_id: number; employee_name: string; department?: string; work_date: string; clock_in?: string; clock_out?: string; notes?: string }> }>('/hr/attendances?per_page=50'),
+    ])
+    setHrEmployees(employeesResponse)
+    setHrAttendances(attendancesResponse.data)
+  }, [])
+
+  const loadWhatsappSettings = useCallback(async () => {
+    const response = await api<{ driver: string; phone_number_id: string; access_token: string; baileys_endpoint: string; is_active: boolean } | null>('/whatsapp/settings')
+    if (response) setWhatsappSettings(response)
+  }, [])
+
   const refreshAll = useCallback(async (profile?: AuthResponse['user'] | null) => {
     const effectiveProfile = profile ?? userRef.current
     const permissionNames = effectiveProfile?.role?.permissions?.map((permission) => permission.name) ?? []
@@ -331,9 +390,18 @@ function App() {
       void api<Paginated<NamedCatalog>>('/branches?per_page=100').then((response) => setBranches(response.data)).catch(() => undefined)
     }
     void loadOperations().catch(() => undefined)
+    if (canLoad('accounting.manage')) {
+      void loadAccounting().catch(() => undefined)
+    }
+    if (canLoad('hr.manage')) {
+      void loadHr().catch(() => undefined)
+    }
+    if (canLoad('settings.manage')) {
+      void loadWhatsappSettings().catch(() => undefined)
+    }
     setApiOnline(true)
     setMessage(session ? 'API conectada. Caja abierta y lista para vender.' : 'API conectada. Abre caja para comenzar.')
-  }, [loadAdmin, loadCustomers, loadOperations, loadProducts, loadReports, loadSession, loadSettings])
+  }, [loadAccounting, loadAdmin, loadCustomers, loadHr, loadOperations, loadProducts, loadReports, loadSession, loadSettings, loadWhatsappSettings])
 
   useEffect(() => {
     localStorage.setItem('pos_theme', theme)
@@ -476,6 +544,28 @@ function App() {
       setUser(null)
       setApiOnline(false)
       setMessage(error instanceof Error ? error.message : 'No fue posible iniciar sesion.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loginWithGoogle = async (credential: string) => {
+    setLoading(true)
+    setMessage('Autenticando con Google...')
+    try {
+      const response = await api<AuthResponse>('/auth/google', {
+        method: 'POST',
+        body: JSON.stringify({ credential, device_name: 'web-pos' }),
+      })
+      localStorage.setItem('pos_token', response.token)
+      userRef.current = response.user
+      setUser(response.user)
+      await refreshAll(response.user)
+    } catch (error) {
+      userRef.current = null
+      setUser(null)
+      setApiOnline(false)
+      setMessage(error instanceof Error ? error.message : 'No fue posible iniciar sesion con Google.')
     } finally {
       setLoading(false)
     }
@@ -1502,6 +1592,126 @@ function App() {
     window.print()
   }
 
+  const createAccountingAccount = async () => {
+    if (!newAccountCode.trim() || !newAccountName.trim() || !newAccountType) {
+      setMessage('Captura codigo, nombre y tipo de cuenta.')
+      return
+    }
+    setLoading(true)
+    try {
+      await api('/accounting/accounts', { method: 'POST', body: JSON.stringify({ code: newAccountCode, name: newAccountName, type: newAccountType }) })
+      setNewAccountCode('')
+      setNewAccountName('')
+      setNewAccountType('')
+      await loadAccounting()
+      setMessage('Cuenta contable creada.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible crear la cuenta.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const viewAccountingEntry = async (entryId: number) => {
+    try {
+      const response = await api<{ entry: { id: number; description: string; entry_date: string }; items: Array<{ id: number; account_id: number; debit: number; credit: number; description?: string; code: string; account_name: string; account_type: string }> }>(`/accounting/entries/${entryId}`)
+      setEntryDetail(response)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible cargar el asiento.')
+    }
+  }
+
+  const createBankAccount = async () => {
+    if (!newBankName.trim()) {
+      setMessage('Captura el nombre del banco.')
+      return
+    }
+    setLoading(true)
+    try {
+      await api('/accounting/bank-accounts', { method: 'POST', body: JSON.stringify({ bank_name: newBankName, account_number: newBankNumber, account_type: newBankType }) })
+      setNewBankName('')
+      setNewBankNumber('')
+      setNewBankType('')
+      await loadAccounting()
+      setMessage('Cuenta bancaria creada.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible crear la cuenta bancaria.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const importBankStatement = async (bankAccountId: number, file: File, format: string) => {
+    setLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('bank_account_id', String(bankAccountId))
+      formData.append('file', file)
+      formData.append('format', format)
+      const response = await api<{ parsed: number; inserted: number; skipped: number }>('/accounting/bank-accounts/' + bankAccountId + '/import', { method: 'POST', body: formData })
+      await loadAccounting()
+      setMessage(`Importados ${response.inserted} registros (${response.skipped} omitidos).`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible importar el estado de cuenta.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const createHrEmployee = async () => {
+    if (!newEmployeeName.trim()) {
+      setMessage('Captura el nombre del empleado.')
+      return
+    }
+    setLoading(true)
+    try {
+      await api('/hr/employees', { method: 'POST', body: JSON.stringify({ name: newEmployeeName, identification: newEmployeeId || null, position: newEmployeePosition || null, department: newEmployeeDepartment || null, pin: newEmployeePin || null }) })
+      setNewEmployeeName('')
+      setNewEmployeeId('')
+      setNewEmployeePosition('')
+      setNewEmployeeDepartment('')
+      setNewEmployeePin('')
+      await loadHr()
+      setMessage('Empleado registrado.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible registrar el empleado.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const clockEmployee = async () => {
+    if (!attendancePin.trim()) {
+      setMessage('Captura el PIN del empleado.')
+      return
+    }
+    setLoading(true)
+    setClockResult(null)
+    try {
+      const response = await api<{ action: string; employee: string; time: string }>('/hr/clock', { method: 'POST', body: JSON.stringify({ pin: attendancePin }) })
+      const actionLabel = response.action === 'clock_in' ? 'Entrada registrada' : 'Salida registrada'
+      setClockResult(`${actionLabel}: ${response.employee} a las ${response.time}`)
+      setAttendancePin('')
+      await loadHr()
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'PIN incorrecto o empleado inactivo.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveWhatsappSettingsHandler = async () => {
+    setLoading(true)
+    try {
+      await api('/whatsapp/settings', { method: 'POST', body: JSON.stringify(whatsappSettings) })
+      setMessage('Configuracion WhatsApp guardada.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible guardar configuracion WhatsApp.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const toggleTheme = () => {
     setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
   }
@@ -1765,6 +1975,29 @@ function App() {
             <Button className="w-full" onClick={login} disabled={loading}>
               {loading ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
               Entrar
+            </Button>
+            <div className="relative flex py-2 items-center">
+              <div className="flex-grow border-t border-stone-300 dark:border-[#4b4b4b]"></div>
+              <span className="flex-shrink mx-4 text-stone-500 text-xs uppercase">o</span>
+              <div className="flex-grow border-t border-stone-300 dark:border-[#4b4b4b]"></div>
+            </div>
+            <Button
+              className="w-full bg-[#4285F4] hover:bg-[#357ae8] text-white flex items-center justify-center gap-2"
+              onClick={async () => {
+                const emailInput = prompt("Ingrese su correo de Google:")
+                if (emailInput) {
+                  await loginWithGoogle(emailInput)
+                }
+              }}
+              disabled={loading}
+            >
+              <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24" style={{ minWidth: '16px' }}>
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+              </svg>
+              Google
             </Button>
           </div>
           <p className={isDarkTheme ? 'mt-4 bg-[#242424] p-3 text-sm text-stone-300' : 'mt-4 bg-stone-50 p-3 text-sm text-stone-600'}>{message}</p>
@@ -2103,7 +2336,61 @@ function App() {
                     onSave={saveSettings}
                     onHaciendaChange={setHaciendaSetting}
                     onSaveHacienda={saveHaciendaSetting}
+                    whatsappSettings={whatsappSettings}
+                    onWhatsappChange={setWhatsappSettings}
+                    onSaveWhatsapp={saveWhatsappSettingsHandler}
                     onPrint={printReceipt}
+                  />
+                )}
+
+                {activeModule === 'accounting' && (
+                  <AccountingModule
+                    accounts={accountingAccounts}
+                    entries={accountingEntries}
+                    entryDetail={entryDetail}
+                    trialBalance={trialBalance}
+                    bankAccounts={bankAccounts}
+                    statementLines={statementLines}
+                    newAccountCode={newAccountCode}
+                    newAccountName={newAccountName}
+                    newAccountType={newAccountType}
+                    newBankName={newBankName}
+                    newBankNumber={newBankNumber}
+                    newBankType={newBankType}
+                    loading={loading}
+                    onNewAccountCode={setNewAccountCode}
+                    onNewAccountName={setNewAccountName}
+                    onNewAccountType={setNewAccountType}
+                    onCreateAccount={createAccountingAccount}
+                    onNewBankName={setNewBankName}
+                    onNewBankNumber={setNewBankNumber}
+                    onNewBankType={setNewBankType}
+                    onCreateBank={createBankAccount}
+                    onViewEntry={viewAccountingEntry}
+                    onImportStatement={importBankStatement}
+                  />
+                )}
+
+                {activeModule === 'hr' && (
+                  <HrModule
+                    employees={hrEmployees}
+                    attendances={hrAttendances}
+                    loading={loading}
+                    clockResult={clockResult}
+                    newEmployeeName={newEmployeeName}
+                    newEmployeeId={newEmployeeId}
+                    newEmployeePosition={newEmployeePosition}
+                    newEmployeeDepartment={newEmployeeDepartment}
+                    newEmployeePin={newEmployeePin}
+                    attendancePin={attendancePin}
+                    onNewEmployeeName={setNewEmployeeName}
+                    onNewEmployeeId={setNewEmployeeId}
+                    onNewEmployeePosition={setNewEmployeePosition}
+                    onNewEmployeeDepartment={setNewEmployeeDepartment}
+                    onNewEmployeePin={setNewEmployeePin}
+                    onCreateEmployee={createHrEmployee}
+                    onAttendancePin={setAttendancePin}
+                    onClock={clockEmployee}
                   />
                 )}
 
@@ -2469,6 +2756,15 @@ function App() {
       )}
       {lastReceipt && <PrintableReceipt receipt={lastReceipt} userName={user.name} businessName={businessName} widthMm={receiptWidth} />}
       <ToastViewport toasts={toasts} onDismiss={dismissToast} />
+
+      <button
+        className="fixed bottom-5 right-5 z-40 grid h-14 w-14 place-items-center rounded-full bg-[#0088cc] text-white shadow-lg transition hover:bg-[#006fa3] print:hidden"
+        onClick={() => setFacturitoOpen(!facturitoOpen)}
+        title="Facturito - Asistente IA"
+      >
+        <MessageCircle size={24} />
+      </button>
+      <FacturitoChat isOpen={facturitoOpen} onClose={() => setFacturitoOpen(false)} />
     </main>
   )
 }
