@@ -97,7 +97,7 @@ export function SettingsModule({
         <div className="grid gap-3 md:grid-cols-2">
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-500">Driver</label>
-            <SelectBox value={whatsappSettings.driver} onChange={(e) => onWhatsappChange({ ...whatsappSettings, driver: e.target.value as 'meta' | 'baileys' })}>
+            <SelectBox value={whatsappSettings.driver} onChange={(value) => onWhatsappChange({ ...whatsappSettings, driver: value as 'meta' | 'baileys' })}>
               <option value="meta">Meta Cloud API</option>
               <option value="baileys">Baileys Gateway (QR)</option>
             </SelectBox>
