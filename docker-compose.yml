@@ -1,74 +1,62 @@
 services:
-  mysql:
-    image: mysql:8.4
-    environment:
-      MYSQL_DATABASE: pos
-      MYSQL_USER: pos
-      MYSQL_PASSWORD: pos_secret
-      MYSQL_ROOT_PASSWORD: root_secret
+  nginx:
+    image: nginx:alpine
     ports:
-      - "3307:3306"
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./frontend/dist:/var/www/html/frontend/dist:ro
+    depends_on:
+      - php
+    networks:
+      - pos-network
+
+  php:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      - mysql
+      - redis
+    volumes:
+      - ./backend:/var/www/html
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: pos_db
+      DB_USERNAME: root
+      DB_PASSWORD: root_secret
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    networks:
+      - pos-network
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root_secret
+      MYSQL_DATABASE: pos_db
+    ports:
+      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    networks:
+      - pos-network
 
-  backend:
-    build:
-      context: ./backend
-    environment:
-      APP_ENV: local
-      APP_DEBUG: "true"
-      APP_KEY: base64:amOEiaqfBRrsUMLW+buIS2hT1wlPkSwruzZLMHFZy3o=
-      DB_CONNECTION: mysql
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_DATABASE: pos
-      DB_USERNAME: pos
-      DB_PASSWORD: pos_secret
-      SANCTUM_STATEFUL_DOMAINS: localhost:5173,localhost:8080
+  redis:
+    image: redis:7-alpine
     ports:
-      - "8000:8000"
-    volumes:
-      - backup_data:/app/storage/app/backups
-    depends_on:
-      mysql:
-        condition: service_healthy
-
-  scheduler:
-    build:
-      context: ./backend
-    environment:
-      APP_ENV: local
-      APP_DEBUG: "true"
-      APP_KEY: base64:amOEiaqfBRrsUMLW+buIS2hT1wlPkSwruzZLMHFZy3o=
-      DB_CONNECTION: mysql
-      DB_HOST: mysql
-      DB_PORT: 3306
-      DB_DATABASE: pos
-      DB_USERNAME: pos
-      DB_PASSWORD: pos_secret
-      SANCTUM_STATEFUL_DOMAINS: localhost:5173,localhost:8080
-    command: sh -c "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"
-    volumes:
-      - backup_data:/app/storage/app/backups
-    depends_on:
-      mysql:
-        condition: service_healthy
-
-  frontend:
-    build:
-      context: ./frontend
-      args:
-        VITE_API_URL: http://localhost:8000/api
-    ports:
-      - "8080:80"
-    depends_on:
-      - backend
+      - "6379:6379"
+    networks:
+      - pos-network
 
 volumes:
   mysql_data:
-  backup_data:
+
+networks:
+  pos-network:
+    driver: bridge
