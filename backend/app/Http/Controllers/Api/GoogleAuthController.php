@@ -7,7 +7,6 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Validation\ValidationException;
 
 class GoogleAuthController extends Controller
 {
@@ -17,27 +16,31 @@ class GoogleAuthController extends Controller
             'credential' => ['required', 'string'],
         ]);
 
-        $credential = $request->string('credential');
+        $credential = (string) $request->string('credential');
 
-        // Verify token against Google API
         $response = Http::get("https://oauth2.googleapis.com/tokeninfo?id_token={$credential}");
 
         if ($response->failed()) {
-            // Fallback for local development/testing offline if token is an email
-            if (config('app.env') === 'local' && filter_var($credential, FILTER_VALIDATE_EMAIL)) {
-                $email = (string) $credential;
-                $name = 'Usuario Demo';
-            } else {
-                return response()->json(['message' => 'Token de Google invalido o expirado.'], 422);
-            }
-        } else {
-            $data = $response->json();
-            $email = $data['email'] ?? null;
-            $name = $data['name'] ?? 'Usuario Google';
+            return response()->json(['message' => 'Token de Google invalido o expirado.'], 422);
+        }
 
-            if (! $email) {
-                return response()->json(['message' => 'El token de Google no contiene un correo valido.'], 422);
-            }
+        $data = $response->json();
+        $email = $data['email'] ?? null;
+        $name = $data['name'] ?? 'Usuario Google';
+        $audience = $data['aud'] ?? null;
+        $expectedClientId = config('services.google.client_id', '');
+
+        if ($expectedClientId && $audience !== $expectedClientId) {
+            return response()->json(['message' => 'Token emitido para un cliente no autorizado.'], 422);
+        }
+
+        $emailVerified = $data['email_verified'] ?? false;
+        if (! $emailVerified) {
+            return response()->json(['message' => 'El correo de Google no esta verificado.'], 422);
+        }
+
+        if (! $email) {
+            return response()->json(['message' => 'El token de Google no contiene un correo valido.'], 422);
         }
 
         $user = User::with(['role.permissions', 'branch'])->where('email', $email)->first();

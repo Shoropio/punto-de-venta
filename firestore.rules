@@ -1,0 +1,35 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Backup metadata — only backend service account writes here
+    match /backups/{backupId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only via Admin SDK from PHP backend
+    }
+
+    // Backup data snapshots (tables stored as subcollections)
+    match /backups/{backupId}/tables/{tableName} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // App settings (whatsapp config, etc.)
+    match /settings/{settingId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Activity logs — read only for admins
+    match /activity_logs/{logId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // Default: deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

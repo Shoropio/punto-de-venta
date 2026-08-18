@@ -135,6 +135,8 @@ function App() {
   const [newEmployeePin, setNewEmployeePin] = useState('')
   const [attendancePin, setAttendancePin] = useState('')
   const [importResult, setImportResult] = useState<{ created: number; updated: number; skipped: number; warnings: string[] } | null>(null)
+
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''
   const [clockResult, setClockResult] = useState<string | null>(null)
   const [whatsappSettings, setWhatsappSettings] = useState<{ driver: 'meta' | 'baileys'; phone_number_id: string; access_token: string; baileys_endpoint: string; is_active: boolean }>({ driver: 'meta', phone_number_id: '', access_token: '', baileys_endpoint: '', is_active: false })
   const [facturitoOpen, setFacturitoOpen] = useState(false)
@@ -2044,13 +2046,18 @@ function App() {
             </div>
             <Button
               className="w-full bg-[#4285F4] hover:bg-[#357ae8] text-white flex items-center justify-center gap-2"
-              onClick={async () => {
-                const emailInput = prompt("Ingrese su correo de Google:")
-                if (emailInput) {
-                  await loginWithGoogle(emailInput)
+              onClick={() => {
+                if (!googleClientId) {
+                  setMessage('VITE_GOOGLE_CLIENT_ID no esta configurado. Agrega el Client ID de Google en el archivo .env del frontend.')
+                  return
                 }
+                window.google?.accounts?.id?.initialize({
+                  client_id: googleClientId,
+                  callback: (response: { credential: string }) => loginWithGoogle(response.credential),
+                })
+                window.google?.accounts?.id?.prompt()
               }}
-              disabled={loading}
+              disabled={loading || !googleClientId}
             >
               <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24" style={{ minWidth: '16px' }}>
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />

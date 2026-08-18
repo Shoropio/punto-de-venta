@@ -67,6 +67,9 @@ return [
             'access_token' => env('ML_ACCESS_TOKEN'),
             'site_id' => env('ML_SITE_ID', 'MCR'),
         ],
+        'google' => [
+            'client_id' => env('GOOGLE_CLIENT_ID', ''),
+        ],
     ],
 
 ];
