@@ -4,6 +4,13 @@ import { Button } from './components/ui/button'
 import { Card } from './components/ui/card'
 import { Input } from './components/ui/input'
 import { ModuleStatusBar, PrintableReceipt, ToastViewport } from './components/shared'
+import { LoginScreen } from './components/LoginScreen'
+import { PaymentDialog } from './components/PaymentDialog'
+import { CashClosingDialog } from './components/CashClosingDialog'
+import { ConfirmDialog } from './components/ConfirmDialog'
+import { DiscountDialog } from './components/DiscountDialog'
+import { InvoicePromptDialog } from './components/InvoicePromptDialog'
+import { CustomerSelectionDialog } from './components/CustomerSelectionDialog'
 import { PosWorkspace } from './modules/sale'
 import { InventoryModule } from './modules/inventory'
 import { CustomersModule } from './modules/customers'
@@ -27,60 +34,11 @@ import { auth, googleProvider } from './lib/firebase'
 import { signInWithPopup } from 'firebase/auth'
 import { configureCurrency, currency } from './lib/utils'
 import { getToastTone, roundMoney } from './lib/pos-utils'
+import { HELD_SALE_KEY, cashDenominations, nav, modulePermissions, type ConfirmAction } from './lib/nav'
 import { emptyProductForm, mapProduct, type ApiProduct, type ProductForm, type ProductIdentifiers } from './types/product'
 import type { Product } from './store/usePosStore'
 import { usePosStore } from './store/usePosStore'
-import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type ActivityLogRow, type AdminUserPayload, type AdminUserRow, type AppTheme, type AuthResponse, type BackupListResponse, type BackupRow, type BackupSchedule, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CashSessionSummary, type CreditPaymentRow, type Customer, type CustomerForm, type DashboardSummary, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PermissionRow, type PromotionRow, type Refund, type RoleRow, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type StockMovementRow, type ToastMessage, type TopProduct } from './types'
-
-const HELD_SALE_KEY = 'pos_held_sale'
-const cashDenominations = [20000, 10000, 5000, 2000, 1000, 500, 100, 50, 25, 10, 5] as const
-type ConfirmAction = {
-  title: string
-  message: string
-  tone?: 'danger' | 'primary'
-  confirmLabel?: string
-  onConfirm: () => void | Promise<void>
-}
-
-const nav: NavItem[] = [
-  { key: 'sale', label: 'Venta', icon: BadgeDollarSign },
-  { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { key: 'inventory', label: 'Inventario', icon: Boxes },
-  { key: 'customers', label: 'Clientes', icon: Users },
-  { key: 'reports', label: 'Reportes', icon: BarChart3 },
-  { key: 'cash', label: 'Caja', icon: Banknote },
-  { key: 'credit', label: 'Credito', icon: WalletCards },
-  { key: 'promotions', label: 'Promociones', icon: Tags },
-  { key: 'payments', label: 'Formas de pago', icon: CreditCard },
-  { key: 'invoices', label: 'Factura', icon: ReceiptText },
-  { key: 'accounting', label: 'Contabilidad', icon: BookOpen },
-  { key: 'hr', label: 'RRHH', icon: Clock },
-  { key: 'barcodes', label: 'Codigos', icon: Barcode },
-  { key: 'printer', label: 'Impresora', icon: Printer },
-  { key: 'backups', label: 'Respaldos', icon: Archive },
-  { key: 'settings', label: 'Configuración', icon: Settings },
-  { key: 'admin', label: 'Admin', icon: UserCog },
-]
-
-const modulePermissions: Record<ModuleKey, string[]> = {
-  sale: ['pos.sell'],
-  dashboard: ['reports.view'],
-  inventory: ['inventory.manage'],
-  customers: ['settings.manage', 'pos.sell'],
-  reports: ['reports.view'],
-  cash: ['cash.open', 'cash.close', 'cash.move'],
-  credit: ['settings.manage'],
-  promotions: ['inventory.manage', 'settings.manage'],
-  payments: ['settings.manage'],
-  invoices: ['hacienda.manage'],
-  accounting: ['accounting.manage'],
-  hr: ['hr.manage'],
-  barcodes: ['inventory.manage'],
-  printer: ['settings.manage'],
-  backups: ['backups.manage'],
-  settings: ['settings.manage'],
-  admin: ['settings.manage'],
-}
+import { emptyBranchForm, emptyCashOpeningForm, emptyCustomerForm, emptyHaciendaSetting, type ActivityLogRow, type AdminUserPayload, type AdminUserRow, type AppTheme, type AuthResponse, type BackupListResponse, type BackupRow, type BackupSchedule, type BranchForm, type CashMovement, type CashOpeningForm, type CashRegister, type CashSession, type CashSessionSummary, type CreditPaymentRow, type Customer, type CustomerForm, type DashboardSummary, type HaciendaSettingRow, type InvoiceRow, type ModuleKey, type NamedCatalog, type NavItem, type Paginated, type PaymentMethodRow, type PermissionRow, type PromotionRow, type Refund, type RoleRow, type SaleListItem, type SaleResponse, type SalesSummary, type SettingRow, type StockMovementRow, type ToastMessage, type TopProduct, type User } from './types'
 
 function App() {
   const [activeModule, setActiveModule] = useState<ModuleKey>('sale')
@@ -2024,47 +1982,19 @@ function App() {
 
   if (!user) {
     return (
-      <main className={isDarkTheme ? 'grid min-h-screen place-items-center bg-[#202020] p-5 text-white' : 'grid min-h-screen place-items-center bg-stone-100 p-5 text-stone-950'}>
-        <Card className={isDarkTheme ? 'w-full max-w-md border-[#4b4b4b] bg-[#2d2d2d] p-6 text-white' : 'w-full max-w-md p-6'}>
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-none bg-[#202020] text-white">
-              <ReceiptText size={24} />
-            </div>
-            <div>
-              <p className={isDarkTheme ? 'text-sm font-semibold text-stone-300' : 'text-sm font-semibold text-stone-700'}>POS profesional</p>
-              <h1 className="text-2xl font-bold">Iniciar sesion</h1>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <Input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Correo" />
-            <Input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Contrasena" type="password" />
-            <Button className="w-full" onClick={login} disabled={loading}>
-              {loading ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
-              Entrar
-            </Button>
-            <div className="relative flex py-2 items-center">
-              <div className="flex-grow border-t border-stone-300 dark:border-[#4b4b4b]"></div>
-              <span className="flex-shrink mx-4 text-stone-500 text-xs uppercase">o</span>
-              <div className="flex-grow border-t border-stone-300 dark:border-[#4b4b4b]"></div>
-            </div>
-            <Button
-              className="w-full bg-[#4285F4] hover:bg-[#357ae8] text-white flex items-center justify-center gap-2"
-              onClick={() => loginWithGoogle()}
-              disabled={loading}
-            >
-              <svg className="h-4 w-4 fill-current" viewBox="0 0 24 24" style={{ minWidth: '16px' }}>
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-              </svg>
-              Google
-            </Button>
-          </div>
-          <p className={isDarkTheme ? 'mt-4 bg-[#242424] p-3 text-sm text-stone-300' : 'mt-4 bg-stone-50 p-3 text-sm text-stone-600'}>{message}</p>
-        </Card>
-        <ToastViewport toasts={toasts} onDismiss={dismissToast} />
-      </main>
+      <LoginScreen
+        isDarkTheme={isDarkTheme}
+        email={email}
+        setEmail={setEmail}
+        password={password}
+        setPassword={setPassword}
+        loading={loading}
+        login={login}
+        loginWithGoogle={loginWithGoogle}
+        message={message}
+        toasts={toasts}
+        dismissToast={dismissToast}
+      />
     )
   }
 
@@ -2481,345 +2411,99 @@ function App() {
       </div>
 
       {customerDialogOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 print:hidden">
-          <Card className={isDarkTheme ? 'max-h-[88vh] w-full max-w-2xl overflow-auto border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'max-h-[88vh] w-full max-w-2xl overflow-auto p-5'}>
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <p className={isDarkTheme ? 'text-sm font-semibold text-[#38bdf8]' : 'text-sm font-semibold text-[#0088cc]'}>Cliente de la venta</p>
-                <h2 className="text-2xl font-bold">Seleccionar cliente</h2>
-              </div>
-              <Button variant="ghost" onClick={() => setCustomerDialogOpen(false)}>Cerrar</Button>
-            </div>
-            <div className="grid gap-2">
-              <button
-                className={isDarkTheme ? 'border border-[#4b4b4b] bg-[#242424] px-3 py-3 text-left text-sm hover:bg-[#303030]' : 'border border-stone-200 px-3 py-3 text-left text-sm hover:bg-stone-50'}
-                onClick={() => {
-                  setSelectedCustomerId('')
-                  setCustomerDialogOpen(false)
-                  setMessage('Venta sin cliente asociado.')
-                }}
-              >
-                Consumidor final
-              </button>
-              {customers.map((customer) => (
-                <button
-                  key={customer.id}
-                  className={String(customer.id) === selectedCustomerId ? 'border border-[#0088cc] bg-[#0088cc] px-3 py-3 text-left text-sm text-white' : isDarkTheme ? 'border border-[#4b4b4b] bg-[#242424] px-3 py-3 text-left text-sm hover:bg-[#303030]' : 'border border-stone-200 px-3 py-3 text-left text-sm hover:bg-stone-50'}
-                  onClick={() => {
-                    setSelectedCustomerId(String(customer.id))
-                    setCustomerDialogOpen(false)
-                    setMessage(`${customer.name} asociado a la venta.`)
-                  }}
-                >
-                  <span className="block font-bold">{customer.name}</span>
-                  <span className={String(customer.id) === selectedCustomerId ? 'text-white/80' : 'text-slate-500'}>{customer.identification_number ?? 'Sin identificacion'} {customer.email ? `- ${customer.email}` : ''}</span>
-                </button>
-              ))}
-            </div>
-          </Card>
-        </div>
+        <CustomerSelectionDialog
+          isDarkTheme={isDarkTheme}
+          customers={customers}
+          selectedCustomerId={selectedCustomerId}
+          setSelectedCustomerId={setSelectedCustomerId}
+          setMessage={setMessage}
+          onDismiss={() => setCustomerDialogOpen(false)}
+        />
       )}
 
       {paymentDialogOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 print:hidden">
-          <Card className={isDarkTheme ? 'w-full max-w-lg border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'w-full max-w-lg p-5'}>
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <p className={isDarkTheme ? 'text-sm font-semibold text-[#38bdf8]' : 'text-sm font-semibold text-[#0088cc]'}>Cobro de venta</p>
-                <h2 className="text-2xl font-bold">{currency.format(total)}</h2>
-              </div>
-              <Button variant="ghost" onClick={closePaymentDialog} disabled={loading}>Cancelar</Button>
-            </div>
-
-            <div className="space-y-3">
-              <div className="grid grid-cols-4 gap-1">
-                {([
-                  ['cash', 'Efectivo'],
-                  ['card', 'Tarjeta'],
-                  ['transfer', 'SINPE'],
-                  ['credit', 'Credito'],
-                ] as const).map(([method, label]) => (
-                  <button
-                    key={method}
-                    className={paymentMethod === method
-                      ? 'border border-[#0088cc] bg-[#0088cc] px-2 py-2 text-xs font-bold text-white'
-                      : isDarkTheme
-                        ? 'border border-[#575757] bg-[#1f1f1f] px-2 py-2 text-xs font-semibold text-stone-200 hover:bg-[#303030]'
-                        : 'border border-stone-300 bg-white px-2 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-100'}
-                    onClick={() => {
-                      setPaymentMethod(method)
-                      setCashReceived(method === 'cash' ? '' : total.toFixed(2))
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              <div className={isDarkTheme ? 'grid grid-cols-2 gap-2 bg-[#242424] p-3 text-sm' : 'grid grid-cols-2 gap-2 bg-stone-100 p-3 text-sm'}>
-                <span>Metodo</span>
-                <strong className="text-right">{paymentMethod === 'cash' ? 'Efectivo' : paymentMethod === 'card' ? 'Tarjeta' : paymentMethod === 'transfer' ? 'Transferencia' : paymentMethod === 'credit' ? 'Credito' : 'Mixto'}</strong>
-                <span>Total</span>
-                <strong className="text-right">{currency.format(total)}</strong>
-                {requiresCashAmount && (
-                  <>
-                    <span>Vuelto</span>
-                    <strong className="text-right">{currency.format(paymentChange)}</strong>
-                  </>
-                )}
-              </div>
-
-              {requiresCashAmount && (
-                <Input
-                  autoFocus
-                  inputMode="decimal"
-                  placeholder="Monto recibido en efectivo"
-                  value={cashReceived}
-                  onChange={(event) => setCashReceived(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') confirmPayment()
-                    if (event.key === 'Escape') closePaymentDialog()
-                  }}
-                />
-              )}
-
-              {paymentMethod === 'credit' && (
-                <div className={isDarkTheme ? 'space-y-3 border border-[#4b4b4b] bg-[#242424] p-3' : 'space-y-3 border border-stone-300 bg-stone-50 p-3'}>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button className="h-9" variant={creditCustomerMode === 'existing' ? 'primary' : 'secondary'} onClick={() => setCreditCustomerMode('existing')}>
-                      <Users size={16} />
-                      Cliente
-                    </Button>
-                    <Button className="h-9" variant={creditCustomerMode === 'new' ? 'primary' : 'secondary'} onClick={() => setCreditCustomerMode('new')}>
-                      <UserPlus size={16} />
-                      Crear
-                    </Button>
-                  </div>
-
-                  {creditCustomerMode === 'existing' ? (
-                    <select
-                      className="h-10 w-full rounded-none border border-stone-300 bg-white px-3 text-sm outline-none focus:border-[#0088cc] dark:border-[#4b4b4b] dark:bg-[#1f1f1f] dark:text-stone-100"
-                      value={paymentCustomerId || selectedCustomerId}
-                      onChange={(event) => {
-                        setPaymentCustomerId(event.target.value)
-                        setSelectedCustomerId(event.target.value)
-                      }}
-                    >
-                      <option value="">Selecciona cliente para credito</option>
-                      {customers.map((customer) => (
-                        <option key={customer.id} value={customer.id}>
-                          {customer.name} {customer.identification_number ? `- ${customer.identification_number}` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="grid gap-2">
-                      <Input placeholder="Nombre del cliente" value={creditCustomerForm.name} onChange={(event) => setCreditCustomerForm({ ...creditCustomerForm, name: event.target.value })} />
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input placeholder="Telefono" value={creditCustomerForm.phone} onChange={(event) => setCreditCustomerForm({ ...creditCustomerForm, phone: event.target.value })} />
-                        <Input placeholder="Email" value={creditCustomerForm.email} onChange={(event) => setCreditCustomerForm({ ...creditCustomerForm, email: event.target.value })} />
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Input placeholder="Identificacion" value={creditCustomerForm.identification_number} onChange={(event) => setCreditCustomerForm({ ...creditCustomerForm, identification_number: event.target.value })} />
-                        <Input placeholder="Limite credito" type="number" value={creditCustomerForm.credit_limit} onChange={(event) => setCreditCustomerForm({ ...creditCustomerForm, credit_limit: event.target.value })} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={closePaymentDialog} disabled={loading}>Cancelar</Button>
-                <Button onClick={confirmPayment} disabled={loading}>
-                  {loading ? <Loader2 className="animate-spin" size={18} /> : <WalletCards size={18} />}
-                  Aceptar
-                </Button>
-              </div>
-            </div>
-          </Card>
-        </div>
+        <PaymentDialog
+          isDarkTheme={isDarkTheme}
+          total={total}
+          loading={loading}
+          paymentMethod={paymentMethod}
+          setPaymentMethod={setPaymentMethod}
+          cashReceived={cashReceived}
+          setCashReceived={setCashReceived}
+          closePaymentDialog={closePaymentDialog}
+          confirmPayment={confirmPayment}
+          requiresCashAmount={requiresCashAmount}
+          paymentChange={paymentChange}
+          creditCustomerMode={creditCustomerMode}
+          setCreditCustomerMode={setCreditCustomerMode}
+          paymentCustomerId={paymentCustomerId}
+          setPaymentCustomerId={setPaymentCustomerId}
+          selectedCustomerId={selectedCustomerId}
+          setSelectedCustomerId={setSelectedCustomerId}
+          customers={customers}
+          creditCustomerForm={creditCustomerForm}
+          setCreditCustomerForm={setCreditCustomerForm}
+        />
       )}
       {invoicePromptSale && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 print:hidden">
-          <Card className={isDarkTheme ? 'w-full max-w-lg border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'w-full max-w-lg p-5'}>
-            <div className="mb-4">
-              <p className={isDarkTheme ? 'text-sm font-semibold text-[#38bdf8]' : 'text-sm font-semibold text-[#0088cc]'}>Venta cobrada e impresa</p>
-              <h2 className="text-2xl font-bold">Desea factura electronica?</h2>
-              <p className={isDarkTheme ? 'mt-1 text-sm text-stone-300' : 'mt-1 text-sm text-stone-600'}>
-                Venta {invoicePromptSale.folio} por {currency.format(Number(invoicePromptSale.total))}.
-              </p>
-            </div>
-
-            <div className="grid gap-3">
-              <Input placeholder="Identificacion fiscal" value={quickInvoiceTaxId} onChange={(event) => setQuickInvoiceTaxId(event.target.value)} />
-              <Input placeholder="Razon social" value={quickInvoiceLegalName} onChange={(event) => setQuickInvoiceLegalName(event.target.value)} />
-              <Input placeholder="Correo para factura" value={quickInvoiceEmail} onChange={(event) => setQuickInvoiceEmail(event.target.value)} />
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={closeInvoicePrompt} disabled={loading}>No emitir</Button>
-                <Button onClick={createInvoiceFromPaidSale} disabled={loading}>
-                  {loading ? <Loader2 className="animate-spin" size={18} /> : <ReceiptText size={18} />}
-                  Emitir factura
-                </Button>
-              </div>
-            </div>
-          </Card>
-        </div>
+        <InvoicePromptDialog
+          isDarkTheme={isDarkTheme}
+          loading={loading}
+          sale={invoicePromptSale}
+          quickInvoiceTaxId={quickInvoiceTaxId}
+          setQuickInvoiceTaxId={setQuickInvoiceTaxId}
+          quickInvoiceLegalName={quickInvoiceLegalName}
+          setQuickInvoiceLegalName={setQuickInvoiceLegalName}
+          quickInvoiceEmail={quickInvoiceEmail}
+          setQuickInvoiceEmail={setQuickInvoiceEmail}
+          closeInvoicePrompt={closeInvoicePrompt}
+          createInvoiceFromPaidSale={createInvoiceFromPaidSale}
+        />
       )}
       {discountDialogOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 print:hidden">
-          <Card className={isDarkTheme ? 'w-full max-w-sm border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'w-full max-w-sm p-5'}>
-            <div className="mb-4">
-              <p className={isDarkTheme ? 'text-sm font-semibold text-[#38bdf8]' : 'text-sm font-semibold text-[#0088cc]'}>Aplicar descuento</p>
-              <h2 className="text-xl font-bold">Porcentaje de descuento</h2>
-            </div>
-            <div className="space-y-3">
-              <div className="grid grid-cols-4 gap-2">
-                {['5', '10', '15', '20'].map((val) => (
-                  <Button key={val} variant={customDiscountValue === val ? 'primary' : 'secondary'} onClick={() => setCustomDiscountValue(val)} className="h-10">
-                    {val}%
-                  </Button>
-                ))}
-              </div>
-              <Input
-                autoFocus
-                type="number"
-                placeholder="Otro %"
-                value={customDiscountValue}
-                onChange={(event) => setCustomDiscountValue(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') confirmCustomDiscount()
-                  if (event.key === 'Escape') setDiscountDialogOpen(false)
-                }}
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" onClick={() => setDiscountDialogOpen(false)}>Cancelar</Button>
-                <Button onClick={confirmCustomDiscount}>Aplicar</Button>
-              </div>
-            </div>
-          </Card>
-        </div>
+        <DiscountDialog
+          isDarkTheme={isDarkTheme}
+          customDiscountValue={customDiscountValue}
+          setCustomDiscountValue={setCustomDiscountValue}
+          confirmCustomDiscount={confirmCustomDiscount}
+          onDismiss={() => setDiscountDialogOpen(false)}
+        />
       )}
       {cashClosingDialogOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 print:hidden">
-          <Card className={isDarkTheme ? 'max-h-[92vh] w-full max-w-3xl overflow-auto border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'max-h-[92vh] w-full max-w-3xl overflow-auto p-5'}>
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <div>
-                <p className={isDarkTheme ? 'text-sm font-semibold text-[#38bdf8]' : 'text-sm font-semibold text-[#0088cc]'}>Arqueo de caja</p>
-                <h2 className="text-2xl font-bold">Confirmar cierre</h2>
-              </div>
-              <Button variant="ghost" onClick={cancelCashClosingDialog} disabled={loading}>Cancelar</Button>
-            </div>
-
-            <div className="grid gap-3 md:grid-cols-4">
-              <div className={isDarkTheme ? 'border border-[#4b4b4b] p-3' : 'border border-stone-200 p-3'}>
-                <span className="block text-xs uppercase text-slate-500">Cajero</span>
-                <strong>{cashClosingSummary?.session.user?.name ?? user.name}</strong>
-              </div>
-              <div className={isDarkTheme ? 'border border-[#4b4b4b] p-3' : 'border border-stone-200 p-3'}>
-                <span className="block text-xs uppercase text-slate-500">Caja</span>
-                <strong>{cashClosingSummary?.session.cash_register?.name ?? currentCashSession?.cash_register?.name ?? 'Caja activa'}</strong>
-              </div>
-              <div className={isDarkTheme ? 'border border-[#4b4b4b] p-3' : 'border border-stone-200 p-3'}>
-                <span className="block text-xs uppercase text-slate-500">Turno</span>
-                <strong>{cashClosingSummary?.session.shift ?? currentCashSession?.shift ?? 'Sin turno'}</strong>
-              </div>
-              <div className={isDarkTheme ? 'border border-[#4b4b4b] p-3' : 'border border-stone-200 p-3'}>
-                <span className="block text-xs uppercase text-slate-500">Ventas</span>
-                <strong>{cashClosingSummary?.sales_count ?? 0}</strong>
-              </div>
-            </div>
-            {pendingFiscalCount > 0 && (
-              <div className="mt-4 border border-amber-500 bg-amber-500/10 p-3 text-sm text-amber-200">
-                Hay {pendingFiscalCount} documento(s) Hacienda pendientes. El cierre se bloqueara hasta resolver o consultar estado.
-              </div>
-            )}
-
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <div className={isDarkTheme ? 'space-y-2 border border-[#4b4b4b] p-4' : 'space-y-2 border border-stone-200 p-4'}>
-                <h3 className="font-bold">Efectivo</h3>
-                <div className="flex justify-between text-sm"><span>Fondo inicial</span><strong>{currency.format(Number(cashClosingSummary?.opening_amount ?? 0))}</strong></div>
-                <div className="flex justify-between text-sm"><span>Depositos</span><strong>{currency.format(Number(cashClosingSummary?.cash_deposits ?? 0))}</strong></div>
-                <div className="flex justify-between text-sm"><span>Retiros</span><strong>{currency.format(Number(cashClosingSummary?.cash_withdrawals ?? 0))}</strong></div>
-                <div className="flex justify-between border-t border-slate-300 pt-2 text-lg font-bold"><span>Esperado</span><span>{currency.format(closingExpected)}</span></div>
-              </div>
-
-              <div className={isDarkTheme ? 'space-y-2 border border-[#4b4b4b] p-4' : 'space-y-2 border border-stone-200 p-4'}>
-                <h3 className="font-bold">Formas de pago</h3>
-                {(cashClosingSummary?.payments ?? []).map((payment) => (
-                  <div key={payment.method} className="flex justify-between text-sm">
-                    <span>{paymentLabels[payment.method] ?? payment.method} ({payment.count})</span>
-                    <strong>{currency.format(Number(payment.total))}</strong>
-                  </div>
-                ))}
-                {(cashClosingSummary?.payments ?? []).length === 0 && <p className="text-sm text-slate-500">No hay ventas cobradas en este turno.</p>}
-                <div className="flex justify-between border-t border-slate-300 pt-2 text-lg font-bold"><span>Total ventas</span><span>{currency.format(Number(cashClosingSummary?.gross_sales ?? 0))}</span></div>
-              </div>
-            </div>
-
-            <div className="mt-4 border border-[#4b4b4b] p-4">
-              <h3 className="mb-3 font-bold">Desglose de billetes y monedas</h3>
-              <div className="grid gap-2 sm:grid-cols-3 md:grid-cols-4">
-                {cashDenominations.map((denomination) => (
-                  <label key={denomination} className="grid grid-cols-[1fr_72px] items-center gap-2 text-sm">
-                    <span>{currency.format(denomination)}</span>
-                    <Input
-                      className="h-8 px-2"
-                      type="number"
-                      min="0"
-                      value={cashBreakdown[String(denomination)] ?? ''}
-                      onChange={(event) => setCashBreakdown((current) => ({ ...current, [denomination]: event.target.value }))}
-                    />
-                  </label>
-                ))}
-              </div>
-              <div className="mt-3 flex justify-between border-t border-[#4b4b4b] pt-2 text-sm font-bold">
-                <span>Total desglose</span>
-                <span>{currency.format(cashBreakdownTotal)}</span>
-              </div>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-[180px_180px_1fr]">
-              <Input placeholder="Efectivo contado" type="number" value={cashClosingAmount} onChange={(event) => setCashClosingAmount(event.target.value)} />
-              <div className={closingDifference === 0 ? 'border border-[#0088cc] p-3 text-sm font-bold text-[#0088cc]' : 'border border-red-500 p-3 text-sm font-bold text-red-500'}>
-                Diferencia: {currency.format(closingDifference)}
-              </div>
-              <Input placeholder={closingDifference === 0 ? 'Observacion opcional' : 'Motivo de faltante o sobrante'} value={cashClosingNotes} onChange={(event) => setCashClosingNotes(event.target.value)} />
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              <Button variant="secondary" onClick={cancelCashClosingDialog} disabled={loading}>Cancelar</Button>
-              <Button
-                variant="danger"
-                onClick={() => askConfirmation({
-                  title: 'Cerrar caja',
-                  message: `Se cerrara la caja con ${currency.format(closingCounted)} contado y diferencia de ${currency.format(closingDifference)}.`,
-                  tone: 'danger',
-                  confirmLabel: 'Cerrar caja',
-                  onConfirm: closeCashSession,
-                })}
-                disabled={loading || !cashClosingAmount || pendingFiscalCount > 0}
-              >
-                {loading ? <Loader2 className="animate-spin" size={18} /> : <WalletCards size={18} />}
-                Cerrar caja
-              </Button>
-            </div>
-          </Card>
-        </div>
+        <CashClosingDialog
+          isDarkTheme={isDarkTheme}
+          loading={loading}
+          user={user as User}
+          cashClosingSummary={cashClosingSummary}
+          currentCashSession={currentCashSession}
+          pendingFiscalCount={pendingFiscalCount}
+          closingExpected={closingExpected}
+          closingCounted={closingCounted}
+          closingDifference={closingDifference}
+          cashBreakdown={cashBreakdown}
+          setCashBreakdown={setCashBreakdown}
+          cashBreakdownTotal={cashBreakdownTotal}
+          cashClosingAmount={cashClosingAmount}
+          setCashClosingAmount={setCashClosingAmount}
+          cashClosingNotes={cashClosingNotes}
+          setCashClosingNotes={setCashClosingNotes}
+          cancelCashClosingDialog={cancelCashClosingDialog}
+          askConfirmation={askConfirmation}
+          closeCashSession={closeCashSession}
+          paymentLabels={paymentLabels}
+        />
       )}
       {confirmAction && (
-        <div className="fixed inset-0 z-[60] grid place-items-center bg-black/70 p-4 print:hidden">
-          <Card className={isDarkTheme ? 'w-full max-w-md border-[#4b4b4b] bg-[#2d2d2d] p-5 text-white' : 'w-full max-w-md p-5'}>
-            <p className={confirmAction.tone === 'danger' ? 'text-sm font-semibold text-red-400' : 'text-sm font-semibold text-[#0088cc]'}>Confirmacion requerida</p>
-            <h2 className="mt-1 text-2xl font-bold">{confirmAction.title}</h2>
-            <p className={isDarkTheme ? 'mt-2 text-sm text-stone-300' : 'mt-2 text-sm text-stone-600'}>{confirmAction.message}</p>
-            <div className="mt-5 grid grid-cols-2 gap-2">
-              <Button variant="secondary" onClick={() => setConfirmAction(null)} disabled={loading}>Cancelar</Button>
-              <Button variant={confirmAction.tone === 'danger' ? 'danger' : 'primary'} onClick={runConfirmedAction} disabled={loading}>
-                {confirmAction.confirmLabel ?? 'Confirmar'}
-              </Button>
-            </div>
-          </Card>
-        </div>
+        <ConfirmDialog
+          isDarkTheme={isDarkTheme}
+          loading={loading}
+          title={confirmAction.title}
+          message={confirmAction.message}
+          tone={confirmAction.tone}
+          confirmLabel={confirmAction.confirmLabel}
+          onConfirm={runConfirmedAction}
+          onDismiss={() => setConfirmAction(null)}
+        />
       )}
       {lastReceipt && <PrintableReceipt receipt={lastReceipt} userName={user.name} businessName={businessName} widthMm={receiptWidth} />}
       <ToastViewport toasts={toasts} onDismiss={dismissToast} />

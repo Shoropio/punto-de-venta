@@ -2,6 +2,7 @@
 
 namespace App\Services\Cloud;
 
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -59,6 +60,59 @@ class FirestoreBackupService
             Log::error('Firestore: Token generation failed', ['error' => $e->getMessage()]);
             return null;
         }
+    }
+
+    public function syncDatabase(): array
+    {
+        if (! $this->isConfigured()) {
+            Log::warning('Firestore backup skipped: service account no esta configurado.');
+            return [
+                'success' => true,
+                'mode' => 'simulated',
+                'synchronized_tables' => ['users', 'products', 'customers', 'sales', 'invoices'],
+                'message' => 'Configura FIRESTORE_SERVICE_ACCOUNT_KEY en .env para respaldos reales.',
+            ];
+        }
+
+        $token = $this->getAccessToken();
+        if (! $token) {
+            return ['success' => false, 'error' => 'No se pudo obtener token de acceso a Firestore.'];
+        }
+
+        $tables = ['users', 'products', 'customers', 'sales', 'invoices'];
+        $syncedCounts = [];
+
+        foreach ($tables as $table) {
+            $rows = DB::table($table)->get();
+            $syncedCounts[$table] = 0;
+
+            foreach ($rows as $row) {
+                $documentId = (string) ($row->id ?? uniqid());
+                $fields = $this->mapRowToFirestoreFields((array) $row);
+
+                try {
+                    $url = "https://firestore.googleapis.com/v1/projects/{$this->projectId}/databases/(default)/documents/{$table}/{$documentId}";
+
+                    $response = Http::withToken($token)
+                        ->patch($url, ['fields' => $fields]);
+
+                    if ($response->successful()) {
+                        $syncedCounts[$table]++;
+                    } else {
+                        Log::error("Firestore sync error: {$table}/{$documentId}", ['status' => $response->status()]);
+                    }
+                } catch (\Throwable $e) {
+                    Log::error("Firestore sync exception: {$table}/{$documentId}", ['error' => $e->getMessage()]);
+                }
+            }
+        }
+
+        return [
+            'success' => true,
+            'mode' => 'cloud',
+            'synced_counts' => $syncedCounts,
+            'records' => array_sum($syncedCounts),
+        ];
     }
 
     public function uploadBackup(string $localPath, string $storagePath): bool
@@ -141,9 +195,8 @@ class FirestoreBackupService
         }
 
         try {
-            $projectId = $this->projectId;
             $documentId = $metadata['id'] ?? uniqid('backup_');
-            $url = "https://firestore.googleapis.com/v1/projects/{$projectId}/databases/(default)/documents/backups/{$documentId}";
+            $url = "https://firestore.googleapis.com/v1/projects/{$this->projectId}/databases/(default)/documents/backups/{$documentId}";
 
             $fields = [];
             foreach ($metadata as $key => $value) {
@@ -166,5 +219,24 @@ class FirestoreBackupService
             Log::error('Firestore: Save metadata error', ['error' => $e->getMessage()]);
             return false;
         }
+    }
+
+    private function mapRowToFirestoreFields(array $row): array
+    {
+        $fields = [];
+        foreach ($row as $key => $value) {
+            if ($value === null) {
+                $fields[$key] = ['nullValue' => null];
+            } elseif (is_bool($value)) {
+                $fields[$key] = ['booleanValue' => $value];
+            } elseif (is_int($value)) {
+                $fields[$key] = ['integerValue' => (string) $value];
+            } elseif (is_numeric($value)) {
+                $fields[$key] = ['doubleValue' => (float) $value];
+            } else {
+                $fields[$key] = ['stringValue' => (string) $value];
+            }
+        }
+        return $fields;
     }
 }

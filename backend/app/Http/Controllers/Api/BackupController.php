@@ -7,7 +7,7 @@ use App\Models\Setting;
 use App\Services\AccessControl;
 use App\Services\ActivityLogger;
 use App\Services\BackupService;
-use App\Services\FirestoreBackupService;
+use App\Services\Cloud\FirestoreBackupService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
