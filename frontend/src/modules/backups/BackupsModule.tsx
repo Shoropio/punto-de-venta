@@ -1,4 +1,4 @@
-import { Download, RefreshCw, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
+import { Cloud, Download, RefreshCw, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Empty } from '../../components/shared/Empty'
@@ -16,6 +16,7 @@ export function BackupsModule({
   onRestore,
   onDelete,
   onSchedule,
+  onCloudSync,
 }: {
   backups: BackupRow[]
   schedule: BackupSchedule
@@ -26,6 +27,7 @@ export function BackupsModule({
   onRestore: (backup: BackupRow) => void
   onDelete: (backup: BackupRow) => void
   onSchedule: (schedule: { enabled: boolean; frequency: 'daily' | 'weekly'; time: string; retention: number }) => void
+  onCloudSync: () => void
 }) {
   const enabled = schedule.backup_enabled === true || schedule.backup_enabled === 'true'
   const frequency = schedule.backup_frequency ?? 'daily'
@@ -39,10 +41,16 @@ export function BackupsModule({
           <h2 className="text-lg font-bold">Respaldos</h2>
           <p className="text-sm text-slate-500">Crea un archivo .zip con una copia JSON de la base de datos.</p>
         </div>
-        <Button onClick={onCreate} disabled={loading}>
-          <ShieldCheck size={18} />
-          Crear respaldo
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={onCloudSync} disabled={loading}>
+            <Cloud size={18} />
+            Sincronizar a Firestore
+          </Button>
+          <Button onClick={onCreate} disabled={loading}>
+            <ShieldCheck size={18} />
+            Crear respaldo
+          </Button>
+        </div>
       </Card>
 
       <Card className="grid gap-3 p-4 md:grid-cols-[160px_160px_160px_1fr_auto] md:items-center">

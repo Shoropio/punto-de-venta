@@ -1,4 +1,4 @@
-import { FileCode2, RefreshCw, ReceiptText, Send, Signature } from 'lucide-react'
+import { FileCode2, FileDown, MessageCircle, RefreshCw, ReceiptText, Send, Signature } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
@@ -8,7 +8,7 @@ import { currency } from '../../lib/utils'
 import { translateStatus } from '../../lib/pos-utils'
 import type { InvoiceRow, SaleListItem } from '../../types'
 
-export function InvoicesModule({ sales, invoices, saleId, documentType, taxId, legalName, email, loading, onSale, onDocumentType, onTaxId, onLegalName, onEmail, onCreate, onGenerateXml, onSign, onSubmit, onCheckStatus }: {
+export function InvoicesModule({ sales, invoices, saleId, documentType, taxId, legalName, email, loading, onSale, onDocumentType, onTaxId, onLegalName, onEmail, onCreate, onGenerateXml, onSign, onSubmit, onCheckStatus, onDownloadPdf, onSendWhatsApp }: {
   sales: SaleListItem[]
   invoices: InvoiceRow[]
   saleId: string
@@ -27,6 +27,8 @@ export function InvoicesModule({ sales, invoices, saleId, documentType, taxId, l
   onSign: (invoiceId: number) => void
   onSubmit: (invoiceId: number) => void
   onCheckStatus: (invoiceId: number) => void
+  onDownloadPdf: (invoiceId: number) => void
+  onSendWhatsApp: (invoice: InvoiceRow) => void
 }) {
   const documentSupport = [
     ['01', 'Factura electronica', 'XML listo'],
@@ -80,11 +82,13 @@ export function InvoicesModule({ sales, invoices, saleId, documentType, taxId, l
             <span>{invoice.tax_id}</span>
             <span>{invoice.schema_version ? `v${invoice.schema_version}` : '-'}</span>
             <span className="text-[#0088cc]">{translateStatus(invoice.hacienda_status ?? invoice.status)}</span>
-            <div className="grid grid-cols-4 gap-1">
+            <div className="grid grid-cols-6 gap-1">
               <button className="grid h-8 place-items-center border border-slate-200 hover:bg-slate-50" title="Generar XML" disabled={loading} onClick={() => onGenerateXml(invoice.id)}><FileCode2 size={15} /></button>
               <button className="grid h-8 place-items-center border border-slate-200 hover:bg-slate-50" title="Firmar XML" disabled={loading} onClick={() => onSign(invoice.id)}><Signature size={15} /></button>
               <button className="grid h-8 place-items-center border border-slate-200 hover:bg-slate-50" title="Enviar Hacienda" disabled={loading} onClick={() => onSubmit(invoice.id)}><Send size={15} /></button>
               <button className="grid h-8 place-items-center border border-slate-200 hover:bg-slate-50" title="Consultar estado" disabled={loading} onClick={() => onCheckStatus(invoice.id)}><RefreshCw size={15} /></button>
+              <button className="grid h-8 place-items-center border border-slate-200 hover:bg-slate-50" title="Descargar PDF" disabled={loading} onClick={() => onDownloadPdf(invoice.id)}><FileDown size={15} /></button>
+              <button className="grid h-8 place-items-center border border-slate-200 hover:bg-slate-50 text-[#25D366]" title="Enviar por WhatsApp" disabled={loading} onClick={() => onSendWhatsApp(invoice)}><MessageCircle size={15} /></button>
             </div>
           </div>
         ))}

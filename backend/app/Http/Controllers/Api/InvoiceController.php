@@ -12,6 +12,7 @@ use App\Services\Hacienda\HaciendaDocumentNumberService;
 use App\Services\Hacienda\HaciendaXmlGenerator;
 use App\Services\Hacienda\HaciendaXmlSigner;
 use App\Services\Notifications\WhatsAppService;
+use App\Services\Pdf\PdfService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
@@ -180,6 +181,17 @@ class InvoiceController extends Controller
         }
 
         return $invoice;
+    }
+
+    public function pdf(Invoice $invoice, PdfService $pdf)
+    {
+        $path = $pdf->generateInvoicePdf($invoice);
+
+        abort_unless($path && file_exists($path), 500, 'No fue posible generar el PDF.');
+
+        return response()->download($path, "factura_{$invoice->numero_consecutivo}.pdf", [
+            'Content-Type' => 'application/pdf',
+        ]);
     }
 
     private function sendWhatsAppNotification(Invoice $invoice): void

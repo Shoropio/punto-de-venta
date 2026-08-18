@@ -28,6 +28,7 @@ use App\Http\Controllers\Api\HrController;
 use App\Http\Controllers\Api\FacturitoController;
 use App\Http\Controllers\Api\GoogleAuthController;
 use App\Http\Controllers\Api\WhatsAppController;
+use App\Http\Controllers\Api\EcommerceController;
 
 Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/auth/google', [GoogleAuthController::class, 'login']);
@@ -96,6 +97,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/invoices', [InvoiceController::class, 'index']);
     Route::post('/invoices', [InvoiceController::class, 'store']);
+    Route::get('/invoices/{invoice}/pdf', [InvoiceController::class, 'pdf']);
     Route::post('/invoices/{invoice}/xml', [InvoiceController::class, 'generateXml']);
     Route::post('/invoices/{invoice}/sign', [InvoiceController::class, 'sign']);
     Route::post('/invoices/{invoice}/submit', [InvoiceController::class, 'submit']);
@@ -131,6 +133,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/accounting/accounts', [AccountingController::class, 'accounts']);
     Route::post('/accounting/accounts', [AccountingController::class, 'storeAccount']);
     Route::get('/accounting/entries', [AccountingController::class, 'entries']);
+    Route::post('/accounting/entries', [AccountingController::class, 'storeEntry']);
     Route::get('/accounting/entries/{entry}', [AccountingController::class, 'entryDetail']);
     Route::get('/accounting/trial-balance', [AccountingController::class, 'trialBalance']);
     Route::get('/accounting/bank-accounts', [AccountingController::class, 'bankAccounts']);
@@ -153,5 +156,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Facturito AI Assistant
     Route::post('/facturito/chat', [FacturitoController::class, 'chat']);
+
+    // E-commerce Sync
+    Route::post('/ecommerce/push/{product}', [EcommerceController::class, 'push']);
+    Route::post('/ecommerce/pull', [EcommerceController::class, 'pull']);
 });
 

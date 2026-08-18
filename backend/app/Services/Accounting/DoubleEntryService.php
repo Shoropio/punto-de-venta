@@ -23,6 +23,32 @@ class DoubleEntryService
         'credit_payment' => ['code' => '1.1.01', 'name' => 'Caja', 'type' => 'asset'],
     ];
 
+    public function recordManualEntry(string $description, string $date, array $items, ?string $reference = null)
+    {
+        $entryId = DB::table('accounting_entries')->insertGetId([
+            'description' => $description,
+            'entry_date'  => $date,
+            'reference'   => $reference,
+            'source_type' => 'manual',
+            'created_at'  => now(),
+            'updated_at'  => now(),
+        ]);
+
+        foreach ($items as $item) {
+            DB::table('accounting_items')->insert([
+                'entry_id'    => $entryId,
+                'account_id'  => $item['account_id'],
+                'debit'       => round((float) ($item['debit'] ?? 0), 2),
+                'credit'      => round((float) ($item['credit'] ?? 0), 2),
+                'description' => $description,
+                'created_at'  => now(),
+                'updated_at'  => now(),
+            ]);
+        }
+
+        return DB::table('accounting_entries')->find($entryId);
+    }
+
     public function recordSale(Sale $sale): void
     {
         $sale->loadMissing(['payments', 'items']);

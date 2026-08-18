@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookOpen, Building2, FileSpreadsheet, Plus, RefreshCw } from 'lucide-react'
+import { BookOpen, Building2, FileSpreadsheet, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import { Button } from '../../components/ui/button'
 import { Card } from '../../components/ui/card'
 import { Input } from '../../components/ui/input'
@@ -143,9 +143,12 @@ export function AccountingModule({
   onCreateBank: () => void
   onViewEntry: (id: number) => void
   onImportStatement: (bankAccountId: number, file: File, format: string) => void
+  onCreateEntry: (description: string, entryDate: string, items: { account_id: number; debit: number; credit: number }[]) => void
 }) {
   const [tab, setTab] = useState<Tab>('accounts')
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null)
+  const [showEntryForm, setShowEntryForm] = useState(false)
+  const [entryForm, setEntryForm] = useState({ description: '', entry_date: new Date().toISOString().slice(0, 10), items: [{ account_id: 0, debit: 0, credit: 0 }] })
 
   const tabs: { key: Tab; label: string; icon: typeof BookOpen }[] = [
     { key: 'accounts', label: 'Cuentas', icon: BookOpen },
@@ -239,14 +242,50 @@ export function AccountingModule({
               </div>
             </Card>
           ) : (
-            <DataCard title="Libro Diario" empty="No hay asientos contables.">
-              {entries.map((entry) => (
-                <button
-                  key={entry.id}
-                  className="grid w-full grid-cols-[80px_1fr_120px] items-center gap-3 border-t border-slate-100 px-4 py-2.5 text-left text-sm hover:bg-slate-50"
-                  onClick={() => { setSelectedEntryId(entry.id); onViewEntry(entry.id) }}
-                >
-                  <span className="font-mono font-bold">#{entry.id}</span>
+            <>
+              {!showEntryForm ? (
+                <Card className="flex items-center justify-between p-4">
+                  <p className="text-sm text-slate-500">Registrar un asiento contable manual de doble partida.</p>
+                  <Button onClick={() => setShowEntryForm(true)}><Plus size={16} /> Nuevo asiento</Button>
+                </Card>
+              ) : (
+                <Card className="p-4">
+                  <h3 className="mb-3 font-bold">Nuevo Asiento Manual</h3>
+                  <div className="grid gap-3 md:grid-cols-[1fr_160px]">
+                    <Input placeholder="Descripcion del asiento" value={entryForm.description} onChange={(e) => setEntryForm({ ...entryForm, description: e.target.value })} />
+                    <Input type="date" value={entryForm.entry_date} onChange={(e) => setEntryForm({ ...entryForm, entry_date: e.target.value })} />
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {entryForm.items.map((item, idx) => (
+                      <div key={idx} className="grid items-center gap-2 md:grid-cols-[1fr_120px_120px_40px]">
+                        <SelectBox value={String(item.account_id)} onChange={(v) => { const items = [...entryForm.items]; items[idx] = { ...items[idx], account_id: Number(v) }; setEntryForm({ ...entryForm, items }) }}>
+                          <option value="0">Seleccionar cuenta</option>
+                          {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+                        </SelectBox>
+                        <Input placeholder="Debito" type="number" min="0" value={item.debit || ''} onChange={(e) => { const items = [...entryForm.items]; items[idx] = { ...items[idx], debit: Number(e.target.value) }; setEntryForm({ ...entryForm, items }) }} />
+                        <Input placeholder="Credito" type="number" min="0" value={item.credit || ''} onChange={(e) => { const items = [...entryForm.items]; items[idx] = { ...items[idx], credit: Number(e.target.value) }; setEntryForm({ ...entryForm, items }) }} />
+                        {entryForm.items.length > 2 && <Button variant="ghost" className="h-8 px-2" onClick={() => setEntryForm({ ...entryForm, items: entryForm.items.filter((_, i) => i !== idx) })}><Trash2 size={14} /></Button>}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button variant="secondary" onClick={() => setEntryForm({ ...entryForm, items: [...entryForm.items, { account_id: 0, debit: 0, credit: 0 }] })}><Plus size={14} /> Linea</Button>
+                    <span className="text-xs text-slate-500">Debitos: {currency.format(entryForm.items.reduce((s, i) => s + i.debit, 0))} | Creditos: {currency.format(entryForm.items.reduce((s, i) => s + i.credit, 0))}</span>
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <Button onClick={() => { onCreateEntry(entryForm.description, entryForm.entry_date, entryForm.items); setShowEntryForm(false); setEntryForm({ description: '', entry_date: new Date().toISOString().slice(0, 10), items: [{ account_id: 0, debit: 0, credit: 0 }] }) }} disabled={loading || !entryForm.description || entryForm.items.length < 2}>Crear asiento</Button>
+                    <Button variant="secondary" onClick={() => setShowEntryForm(false)}>Cancelar</Button>
+                  </div>
+                </Card>
+              )}
+              <DataCard title="Libro Diario" empty="No hay asientos contables.">
+                {entries.map((entry) => (
+                  <button
+                    key={entry.id}
+                    className="grid w-full grid-cols-[80px_1fr_120px] items-center gap-3 border-t border-slate-100 px-4 py-2.5 text-left text-sm hover:bg-slate-50"
+                    onClick={() => { setSelectedEntryId(entry.id); onViewEntry(entry.id) }}
+                  >
+                    <span className="font-mono font-bold">#{entry.id}</span>
                   <span>{entry.description}</span>
                   <span className="text-slate-500">{entry.entry_date}</span>
                 </button>

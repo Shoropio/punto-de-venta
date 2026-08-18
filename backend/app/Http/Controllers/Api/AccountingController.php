@@ -77,6 +77,44 @@ class AccountingController extends Controller
 
     // ─── Balance ────────────────────────────────────────────────────────────
 
+    public function storeEntry(Request $request, AccessControl $accessControl, ActivityLogger $activityLogger, DoubleEntryService $doubleEntry)
+    {
+        $accessControl->authorize($request->user(), 'accounting.manage');
+
+        $data = $request->validate([
+            'description' => ['required', 'string', 'max:255'],
+            'entry_date' => ['required', 'date'],
+            'reference' => ['nullable', 'string', 'max:100'],
+            'items' => ['required', 'array', 'min:2'],
+            'items.*.account_id' => ['required', 'exists:accounting_accounts,id'],
+            'items.*.debit' => ['required', 'numeric', 'min:0'],
+            'items.*.credit' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        $totalDebit = array_sum(array_column($data['items'], 'debit'));
+        $totalCredit = array_sum(array_column($data['items'], 'credit'));
+
+        if (round($totalDebit, 2) !== round($totalCredit, 2)) {
+            abort(422, 'El total de debitos debe ser igual al total de creditos.');
+        }
+
+        $entry = $doubleEntry->recordManualEntry(
+            $data['description'],
+            $data['entry_date'],
+            $data['items'],
+            $data['reference'] ?? null,
+        );
+
+        $activityLogger->log($request->user(), 'accounting.entry_created', null, [
+            'entry_id' => $entry->id,
+            'description' => $data['description'],
+        ]);
+
+        return response()->json($entry->load('items'), 201);
+    }
+
+    // ─── Balance ────────────────────────────────────────────────────────────
+
     public function trialBalance()
     {
         $rows = DB::table('accounting_items as i')

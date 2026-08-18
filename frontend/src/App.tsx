@@ -134,6 +134,7 @@ function App() {
   const [newEmployeeDepartment, setNewEmployeeDepartment] = useState('')
   const [newEmployeePin, setNewEmployeePin] = useState('')
   const [attendancePin, setAttendancePin] = useState('')
+  const [importResult, setImportResult] = useState<{ created: number; updated: number; skipped: number; warnings: string[] } | null>(null)
   const [clockResult, setClockResult] = useState<string | null>(null)
   const [whatsappSettings, setWhatsappSettings] = useState<{ driver: 'meta' | 'baileys'; phone_number_id: string; access_token: string; baileys_endpoint: string; is_active: boolean }>({ driver: 'meta', phone_number_id: '', access_token: '', baileys_endpoint: '', is_active: false })
   const [facturitoOpen, setFacturitoOpen] = useState(false)
@@ -1565,6 +1566,66 @@ function App() {
     }
   }
 
+  const downloadInvoicePdf = (invoiceId: number) => {
+    const token = localStorage.getItem('pos_token')
+    window.open(`${API_URL}/invoices/${invoiceId}/pdf`, '_blank', `authorization=Bearer ${token}`)
+  }
+
+  const sendWhatsAppInvoice = async (invoice: { id: number; numero_consecutivo?: string; tax_id?: string; legal_name?: string }) => {
+    const phone = prompt('Numero de telefono del cliente (formato 506XXXXXXXX):')
+    if (!phone) return
+    setLoading(true)
+    try {
+      await api('/whatsapp/send-invoice', { method: 'POST', body: JSON.stringify({ phone, customer_name: invoice.legal_name ?? 'Cliente', folio: invoice.numero_consecutivo ?? `INV-${invoice.id}`, total: 0 }) })
+      setMessage('Factura enviada por WhatsApp.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible enviar por WhatsApp.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const importProductCsv = async (file: File) => {
+    setLoading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const result = await api<{ created: number; updated: number; skipped: number; warnings: string[] }>('/products/import', { method: 'POST', body: formData })
+      setImportResult(result)
+      await loadProducts()
+      setMessage(`Importacion completada: ${result.created} creados, ${result.updated} actualizados, ${result.skipped} omitidos.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible importar el CSV.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const createJournalEntry = async (description: string, entryDate: string, items: { account_id: number; debit: number; credit: number }[]) => {
+    setLoading(true)
+    try {
+      await api('/accounting/entries', { method: 'POST', body: JSON.stringify({ description, entry_date: entryDate, items }) })
+      await loadAccounting()
+      setMessage('Asiento contable creado.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible crear el asiento.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const cloudSyncBackup = async () => {
+    setLoading(true)
+    try {
+      const result = await api<{ success?: boolean; records?: number; error?: string }>('/backups/cloud-sync', { method: 'POST' })
+      setMessage(result.success ? `Sincronizacion exitosa: ${result.records ?? 0} registros.` : (result.error ?? 'Sincronizacion completada.'))
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'No fue posible sincronizar a Firestore.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const generateBarcode = async () => {
     const response = await api<{ barcode: string }>('/barcodes/generate')
     setBarcodeValue(response.barcode)
@@ -2156,6 +2217,8 @@ function App() {
                     onDelete={deleteProduct}
                     onRegenerate={regenerateProductIdentifiers}
                     onAdjust={adjustStock}
+                    onImportCsv={importProductCsv}
+                    importResult={importResult}
                   />
                 )}
 
@@ -2269,6 +2332,8 @@ function App() {
                     onSign={(invoiceId) => runInvoiceAction(invoiceId, 'sign')}
                     onSubmit={(invoiceId) => runInvoiceAction(invoiceId, 'submit')}
                     onCheckStatus={(invoiceId) => runInvoiceAction(invoiceId, 'status')}
+                    onDownloadPdf={downloadInvoicePdf}
+                    onSendWhatsApp={sendWhatsAppInvoice}
                   />
                 )}
 
@@ -2311,6 +2376,7 @@ function App() {
                     onRestore={restoreBackup}
                     onDelete={deleteBackup}
                     onSchedule={saveBackupSchedule}
+                    onCloudSync={cloudSyncBackup}
                   />
                 )}
 
@@ -2368,6 +2434,7 @@ function App() {
                     onCreateBank={createBankAccount}
                     onViewEntry={viewAccountingEntry}
                     onImportStatement={importBankStatement}
+                    onCreateEntry={createJournalEntry}
                   />
                 )}
 
