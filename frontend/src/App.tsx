@@ -96,6 +96,7 @@ function App() {
   const [attendancePin, setAttendancePin] = useState('')
   const [importResult, setImportResult] = useState<{ created: number; updated: number; skipped: number; warnings: string[] } | null>(null)
   const [clockResult, setClockResult] = useState<string | null>(null)
+  const [selectedCartItemId, setSelectedCartItemId] = useState<number | null>(null)
   const [whatsappSettings, setWhatsappSettings] = useState<{ driver: 'meta' | 'baileys'; phone_number_id: string; access_token: string; baileys_endpoint: string; is_active: boolean }>({ driver: 'meta', phone_number_id: '', access_token: '', baileys_endpoint: '', is_active: false })
   const [facturitoOpen, setFacturitoOpen] = useState(false)
   const [productForm, setProductForm] = useState<ProductForm>(emptyProductForm)
@@ -2078,6 +2079,8 @@ function App() {
               selectedCustomerName={selectedCustomer?.name}
               cashSessionOpen={cashSessionOpen}
               paymentMethod={paymentMethod}
+              selectedCartItemId={selectedCartItemId}
+              onSelectCartItem={setSelectedCartItemId}
               onAdd={addProductToCart}
               onRefresh={loadProducts}
               onFocusSearch={focusSearch}

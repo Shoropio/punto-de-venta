@@ -119,6 +119,7 @@ export function AccountingModule({
   onCreateBank,
   onViewEntry,
   onImportStatement,
+  onCreateEntry,
 }: {
   accounts: AccountingAccount[]
   entries: AccountingEntry[]
