@@ -26,7 +26,8 @@ class StockService
             ]);
         }
 
-        $before = (float) $product->stock;
+        $locked = Product::whereKey($product->id)->lockForUpdate()->first();
+        $before = (float) $locked->stock;
         $after = match ($type) {
             'in', 'refund' => $before + $quantity,
             'out', 'sale' => $before - $quantity,

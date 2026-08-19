@@ -91,7 +91,7 @@ class SaleService
             $cashTotal = collect($data['payments'])
                 ->where('method', 'cash')
                 ->sum(fn (array $payment): float => (float) $payment['amount']);
-            $changeTotal = round(max(0, $paidTotal - $total), 2);
+            $changeTotal = round(max(0, $cashTotal - $total), 2);
             $cashDrawerIncrease = round(max(0, $cashTotal - $changeTotal), 2);
 
             if ($creditTotal > 0 && empty($data['customer_id'])) {

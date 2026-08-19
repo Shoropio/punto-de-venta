@@ -5,6 +5,7 @@ namespace App\Services\Hacienda;
 use App\Models\HaciendaSetting;
 use App\Models\Invoice;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -96,25 +97,30 @@ class HaciendaApiClient
             ]);
         }
 
-        try {
-            $response = Http::asForm()
-                ->acceptJson()
-                ->post(config('services.hacienda.token_url'), [
-                    'grant_type' => 'password',
-                    'client_id' => $setting->environment === 'production'
-                        ? config('services.hacienda.production_client_id')
-                        : config('services.hacienda.staging_client_id'),
-                    'username' => $setting->api_username,
-                    'password' => $setting->api_password,
-                ])
-                ->throw();
-        } catch (RequestException $exception) {
-            throw ValidationException::withMessages([
-                'hacienda' => 'No fue posible autenticar contra Hacienda.',
-            ]);
-        }
+        $cacheKey = "hacienda_token_{$setting->id}_" . md5($setting->api_username);
+        $ttlMinutes = (int) config('services.hacienda.token_ttl', 50);
 
-        return (string) $response->json('access_token');
+        return Cache::remember($cacheKey, now()->addMinutes($ttlMinutes), function () use ($setting) {
+            try {
+                $response = Http::asForm()
+                    ->acceptJson()
+                    ->post(config('services.hacienda.token_url'), [
+                        'grant_type' => 'password',
+                        'client_id' => $setting->environment === 'production'
+                            ? config('services.hacienda.production_client_id')
+                            : config('services.hacienda.staging_client_id'),
+                        'username' => $setting->api_username,
+                        'password' => $setting->api_password,
+                    ])
+                    ->throw();
+            } catch (RequestException $exception) {
+                throw ValidationException::withMessages([
+                    'hacienda' => 'No fue posible autenticar contra Hacienda.',
+                ]);
+            }
+
+            return (string) $response->json('access_token');
+        });
     }
 
     private function authorized(HaciendaSetting $setting)
@@ -169,6 +175,12 @@ class HaciendaApiClient
         }
 
         return $setting;
+    }
+
+    public function invalidateToken(HaciendaSetting $setting): void
+    {
+        $cacheKey = "hacienda_token_{$setting->id}_" . md5($setting->api_username);
+        Cache::forget($cacheKey);
     }
 
     private function url(HaciendaSetting $setting, string $path): string
