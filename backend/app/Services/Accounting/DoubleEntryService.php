@@ -18,13 +18,22 @@ class DoubleEntryService
         'sales'         => ['code' => '4.1.01', 'name' => 'Ventas de Mercaderia', 'type' => 'income'],
         'sales_returns' => ['code' => '4.1.03', 'name' => 'Devoluciones en Ventas', 'type' => 'income'],
         'iva_payable'   => ['code' => '2.1.03', 'name' => 'IVA por Pagar', 'type' => 'liability'],
-        'card'          => ['code' => '1.1.06', 'name' => 'Cuentas por Cobrar Clientes', 'type' => 'asset'],
-        'transfer'      => ['code' => '1.1.06', 'name' => 'Cuentas por Cobrar Clientes', 'type' => 'asset'],
+        'card'          => ['code' => '1.1.03', 'name' => 'Bancos - Tarjeta', 'type' => 'asset'],
+        'transfer'      => ['code' => '1.1.04', 'name' => 'Bancos - Transferencia', 'type' => 'asset'],
         'credit_payment' => ['code' => '1.1.01', 'name' => 'Caja', 'type' => 'asset'],
     ];
 
     public function recordManualEntry(string $description, string $date, array $items, ?string $reference = null)
     {
+        $totalDebit = array_sum(array_map(fn ($item) => (float) ($item['debit'] ?? 0), $items));
+        $totalCredit = array_sum(array_map(fn ($item) => (float) ($item['credit'] ?? 0), $items));
+
+        if (round($totalDebit, 2) !== round($totalCredit, 2)) {
+            throw new \InvalidArgumentException(
+                "El asiento no esta balanceado: debito={$totalDebit}, credito={$totalCredit}. Ambos deben ser iguales."
+            );
+        }
+
         $entryId = DB::table('accounting_entries')->insertGetId([
             'description' => $description,
             'entry_date'  => $date,

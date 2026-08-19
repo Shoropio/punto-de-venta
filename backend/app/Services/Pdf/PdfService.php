@@ -3,6 +3,10 @@
 namespace App\Services\Pdf;
 
 use App\Models\Invoice;
+use BaconQrCode\Renderer\ImageRenderer;
+use BaconQrCode\Renderer\Image\SvgImageBackEnd;
+use BaconQrCode\Renderer\RendererStyle\RendererStyle;
+use BaconQrCode\Writer;
 use Barryvdh\DomPDF\PDF as DomPdf;
 use Illuminate\Support\Facades\Log;
 
@@ -52,7 +56,7 @@ class PdfService
             $product = $item->product;
             $itemsHtml .= "
                 <tr>
-                    <td>{$product->name}</td>
+                    <td>" . htmlspecialchars((string) ($product->name ?? '')) . "</td>
                     <td class='right'>{$item->quantity}</td>
                     <td class='right'>{$this->formatCurrency($item->unit_price)}</td>
                     <td class='right'>{$this->formatCurrency($item->tax_amount)}</td>
@@ -64,11 +68,13 @@ class PdfService
         foreach ($payments as $payment) {
             $paymentsHtml .= "
                 <tr>
-                    <td>{$payment->method}</td>
+                    <td>" . htmlspecialchars((string) $payment->method) . "</td>
                     <td class='right'>{$this->formatCurrency($payment->amount)}</td>
-                    <td>{$payment->reference ?? '-'}</td>
+                    <td>" . htmlspecialchars((string) ($payment->reference ?? '-')) . "</td>
                 </tr>";
         }
+
+        $qrSvg = $this->generateQrSvg($invoice);
 
         return "<!DOCTYPE html>
 <html lang='es'>
@@ -88,7 +94,10 @@ class PdfService
         .right { text-align: right; }
         .total-row { font-weight: bold; background: #f0f0f0; }
         .footer { text-align: center; margin-top: 20px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 10px; color: #999; }
-        .qr-placeholder { text-align: center; margin: 15px 0; padding: 20px; border: 1px dashed #ccc; }
+        .qr-section { text-align: center; margin: 15px 0; }
+        .qr-section svg { width: 120px; height: 120px; }
+        @page { margin-bottom: 40px; }
+        .page-footer { text-align: center; font-size: 9px; color: #aaa; position: fixed; bottom: 10px; width: 100%; }
     </style>
 </head>
 <body>
@@ -101,21 +110,21 @@ class PdfService
         <p><strong>Clave:</strong> {$invoice->clave}</p>
         <p><strong>Numero Consecutivo:</strong> {$invoice->numero_consecutivo}</p>
         <p><strong>Fecha Emision:</strong> {$invoice->issued_at?->format('d/m/Y H:i:s') ?? '-'}</p>
-        <p><strong>Estado Hacienda:</strong> {$invoice->hacienda_status}</p>
+        <p><strong>Estado Hacienda:</strong> " . htmlspecialchars((string) $invoice->hacienda_status) . "</p>
     </div>
 
     <div class='section-title'>DATOS DEL EMISOR</div>
     <div class='fiscal-info'>
-        <p><strong>Nombre:</strong> " . ($invoice->legal_name ?? '-') . "</p>
-        <p><strong>Identificacion:</strong> " . ($invoice->tax_id ?? '-') . "</p>
+        <p><strong>Nombre:</strong> " . htmlspecialchars((string) ($invoice->legal_name ?? '-')) . "</p>
+        <p><strong>Identificacion:</strong> " . htmlspecialchars((string) ($invoice->tax_id ?? '-')) . "</p>
     </div>
 
     " . ($customer ? "
     <div class='section-title'>DATOS DEL RECEPTOR</div>
     <div class='fiscal-info'>
-        <p><strong>Nombre:</strong> {$customer->name}</p>
-        <p><strong>Identificacion:</strong> " . ($customer->identification ?? '-') . "</p>
-        <p><strong>Email:</strong> " . ($customer->email ?? '-') . "</p>
+        <p><strong>Nombre:</strong> " . htmlspecialchars((string) $customer->name) . "</p>
+        <p><strong>Identificacion:</strong> " . htmlspecialchars((string) ($customer->identification_number ?? '-')) . "</p>
+        <p><strong>Email:</strong> " . htmlspecialchars((string) ($customer->email ?? '-')) . "</p>
     </div>" : '') . "
 
     <div class='section-title'>DETALLE</div>
@@ -139,8 +148,8 @@ class PdfService
         <tbody>{$paymentsHtml}</tbody>
     </table>
 
-    <div class='qr-placeholder'>
-        <p style='color: #999; font-size: 10px;'>[Codigo QR del comprobante fiscal]</p>
+    <div class='qr-section'>
+        {$qrSvg}
     </div>
 
     <div class='footer'>
@@ -151,8 +160,33 @@ class PdfService
 </html>";
     }
 
+    private function generateQrSvg(Invoice $invoice): string
+    {
+        try {
+            $qrContent = "https://catalogo.respuestadev.hacienda.go.cr反应" .
+                "?ncomprobante={$invoice->numero_consecutivo}" .
+                "&fechacomprobante={$invoice->issued_at?->format('Y-m-d')}" .
+                "&emisor={$invoice->tax_id}" .
+
+                "&receptor=" . ($invoice->sale?->customer?->identification_number ?? '000000000') .
+
+                "&totalcomprobante=" . number_format((float) ($invoice->sale?->total ?? 0), 2, '.', '');
+
+            $renderer = new ImageRenderer(
+                new RendererStyle(190),
+                new SvgImageBackEnd()
+            );
+            $writer = new Writer($renderer);
+
+            return $writer->writeString($qrContent);
+        } catch (\Throwable $e) {
+            Log::warning('PDF: QR generation failed, using fallback', ['error' => $e->getMessage()]);
+            return '<p style="color: #999; font-size: 10px;">[QR no disponible]</p>';
+        }
+    }
+
     private function formatCurrency(float $amount): string
     {
-        return '₡' . number_format($amount, 2, ',', '.');
+        return "\xC2\xA2" . number_format($amount, 2, ',', '.');
     }
 }
