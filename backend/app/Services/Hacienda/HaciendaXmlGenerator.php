@@ -182,9 +182,13 @@ class HaciendaXmlGenerator
     private function appendSummary(DOMDocument $document, DOMElement $root, Invoice $invoice): void
     {
         $summary = $root->appendChild($document->createElement('ResumenFactura'));
+
+        $currencyCode = data_get($invoice->metadata, 'currency', 'CRC');
+        $exchangeRate = data_get($invoice->metadata, 'exchange_rate', '1.00000');
+
         $currency = $summary->appendChild($document->createElement('CodigoTipoMoneda'));
-        $this->appendText($document, $currency, 'CodigoMoneda', 'CRC');
-        $this->appendText($document, $currency, 'TipoCambio', '1.00000');
+        $this->appendText($document, $currency, 'CodigoMoneda', $currencyCode);
+        $this->appendText($document, $currency, 'TipoCambio', $exchangeRate);
 
         $this->appendText($document, $summary, 'TotalMercanciasGravadas', $this->decimal($invoice->sale->subtotal));
         $this->appendText($document, $summary, 'TotalGravado', $this->decimal($invoice->sale->subtotal));
